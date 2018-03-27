@@ -1,4 +1,0 @@
-Crear un directorio /entregas/1.historia/
-en el repositorioy subir ahí el resumen de 
-la historia de los sistemas operativos en 
-formato pdf o txt (no .doc)
