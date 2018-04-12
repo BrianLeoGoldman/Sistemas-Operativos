@@ -70,7 +70,7 @@ class IoDeviceController():
     def __load_from_waiting_queue_if_apply(self):
         if (len(self._waiting_queue) > 0) and self._device.is_idle:
             ## pop(): extracts (deletes and return) the first element in queue
-            pair = self._waiting_queue.pop()
+            pair = self._waiting_queue.pop(0)
             print(pair)
             pcb = pair['pcb']
             instruction = pair['instruction']
@@ -97,19 +97,19 @@ class AbstractInterruptionHandler():
     def execute(self, irq):
         log.logger.error("-- EXECUTE MUST BE OVERRIDEN in class {classname}".format(classname=self.__class__.__name__))
 
-    def getReady(self, pid):
+    def getReady(self, pcb):
         if self.kernel.hasRunning():
-            self.kernel.addToReady(pid)
+            self.kernel.addToReady(pcb)
         else:
-            pcb = self.kernel.table.getPCB(pid)
-            self.kernel.setCurrent(pid)
+            # pcb = self.kernel.table.getPCB(pid)
+            self.kernel.setCurrent(pcb)
             self.kernel.dispatcher.load(pcb)
 
     def contextSwitch(self):
         if self.kernel.hasReady():
-            pid = self.kernel.nextReady()
-            pcb = self.kernel.table.getPCB(pid)
-            self.kernel.setCurrent(pid)
+            pcb = self.kernel.nextReady()
+            # pcb = self.kernel.table.getPCB(pid)
+            self.kernel.setCurrent(pcb)
             self.kernel.dispatcher.load(pcb)
 
 
@@ -117,9 +117,9 @@ class KillInterruptionHandler(AbstractInterruptionHandler):
 
     def execute(self, irq):
         log.logger.info(" Program Finished ")
-        pid = self.kernel.getCurrent()
+        pcb = self.kernel.getCurrent()
         self.kernel.terminate()
-        pcb = self.kernel.table.getPCB(pid)
+        # pcb = self.kernel.table.getPCB(pid)
         self.kernel.dispatcher.save(pcb)
         self.contextSwitch()
 
@@ -128,10 +128,10 @@ class IoInInterruptionHandler(AbstractInterruptionHandler):
     def execute(self, irq):
         operation = irq.parameters
         # pcb = {'pc': HARDWARE.cpu.pc}
-        pid = self.kernel.table.getCurrent()
-        pcb = self.kernel.table.getPCB(pid)
+        pcb = self.kernel.table.getCurrent()
+        # pcb = self.kernel.table.getPCB(pid)
         self.kernel.dispatcher.save(pcb)
-        self.kernel.ioDeviceController.runOperation(pid, operation)
+        self.kernel.ioDeviceController.runOperation(pcb, operation)
         self.kernel.terminate()
         log.logger.info(self.kernel.ioDeviceController)
         self.contextSwitch()
@@ -140,9 +140,9 @@ class IoInInterruptionHandler(AbstractInterruptionHandler):
 class IoOutInterruptionHandler(AbstractInterruptionHandler):
 
     def execute(self, irq):
-        pid = self.kernel.ioDeviceController.getFinishedPCB()
+        pcb = self.kernel.ioDeviceController.getFinishedPCB()
         log.logger.info(self.kernel.ioDeviceController)
-        self.getReady(pid)
+        self.getReady(pcb)
 
 
 class NewInterruptionHandler(AbstractInterruptionHandler):
@@ -151,8 +151,8 @@ class NewInterruptionHandler(AbstractInterruptionHandler):
         program = irq.parameters
         baseDir = self.kernel.loader.availableCell
         self.kernel.loader.load(program)
-        pid = self.kernel.createPCB(baseDir, baseDir + len(program.instructions))
-        self.getReady(pid)
+        pcb = self.kernel.createPCB(baseDir, baseDir + len(program.instructions))
+        self.getReady(pcb)
 
 
 
@@ -210,14 +210,14 @@ class Kernel():
     def hasRunning(self):
         return self.table.hasCurrent()
 
-    def addToReady(self, pid):
-        self._ready.append(pid)
+    def addToReady(self, pcb):
+        self._ready.append(pcb)
 
     def getCurrent(self):
         return self.table.current
 
-    def setCurrent(self, pid):
-        self.table.current = pid
+    def setCurrent(self, pcb):
+        self.table.current = pcb
 
     ## emulates a "system call" for programs execution
     def execute(self, program):
@@ -240,11 +240,11 @@ class Kernel():
 
     def createPCB(self, baseDir, maxDir):
         pcb = PCB(baseDir, maxDir)
-        pid = self.table.addPCB(pcb)
-        return pid
+        self.table.addPCB(pcb)
+        return pcb
 
-    def addReady(self, pid):
-        self._ready.append(pid)
+    def addReady(self, pcb):
+        self._ready.append(pcb)
 
     def __repr__(self):
         return "Kernel "
@@ -282,7 +282,7 @@ class PCBTable():
         pcb.setPID(self.counter)
         self.addCounter()
         self._elements.append(pcb)
-        return pcb.pid
+        return pcb
 
     def getPCB(self, pid):
         pcb = self._elements[pid]
