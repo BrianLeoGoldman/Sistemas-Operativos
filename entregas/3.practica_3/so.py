@@ -107,7 +107,7 @@ class AbstractInterruptionHandler():
 
     def contextSwitch(self):
         if self.kernel.hasReady():
-            pid = self.kernel.ready.pop()
+            pid = self.kernel.nextReady()
             pcb = self.kernel.table.getPCB(pid)
             self.kernel.setCurrent(pid)
             self.kernel.dispatcher.load(pcb)
@@ -203,6 +203,9 @@ class Kernel():
 
     def hasReady(self):
         return len(self._ready) > 0
+
+    def nextReady(self):
+        return self.ready.pop(0)
 
     def hasRunning(self):
         return self.table.hasCurrent()
