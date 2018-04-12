@@ -2,7 +2,7 @@
 
 from tabulate import tabulate
 from time import sleep
-from practica3 import log
+import log
 
 ##  Estas son la instrucciones soportadas por nuestro CPU
 INSTRUCTION_IO = 'IO'

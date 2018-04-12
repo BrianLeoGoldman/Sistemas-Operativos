@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
-from practica3.hardware import *
-from practica3 import log
+from hardware import *
+import log
 
 
 
@@ -58,6 +58,7 @@ class IoDeviceController():
         pair = {'pcb': pcb, 'instruction': instruction}
         # append: adds the element at the end of the queue
         self._waiting_queue.append(pair)
+        pcb.state = "Waiting"
         # try to send the instruction to hardware's device (if is idle)
         self.__load_from_waiting_queue_if_apply()
 
@@ -100,17 +101,18 @@ class AbstractInterruptionHandler():
     def getReady(self, pcb):
         if self.kernel.hasRunning():
             self.kernel.addToReady(pcb)
+            pcb.state = "Ready"
         else:
-            # pcb = self.kernel.table.getPCB(pid)
             self.kernel.setCurrent(pcb)
             self.kernel.dispatcher.load(pcb)
+            pcb.state = "Running"
 
     def contextSwitch(self):
         if self.kernel.hasReady():
             pcb = self.kernel.nextReady()
-            # pcb = self.kernel.table.getPCB(pid)
             self.kernel.setCurrent(pcb)
             self.kernel.dispatcher.load(pcb)
+            pcb.state = "Running"
 
 
 class KillInterruptionHandler(AbstractInterruptionHandler):
@@ -118,8 +120,8 @@ class KillInterruptionHandler(AbstractInterruptionHandler):
     def execute(self, irq):
         log.logger.info(" Program Finished ")
         pcb = self.kernel.getCurrent()
+        pcb.state = "Terminated"
         self.kernel.terminate()
-        # pcb = self.kernel.table.getPCB(pid)
         self.kernel.dispatcher.save(pcb)
         self.contextSwitch()
 
@@ -127,9 +129,7 @@ class IoInInterruptionHandler(AbstractInterruptionHandler):
 
     def execute(self, irq):
         operation = irq.parameters
-        # pcb = {'pc': HARDWARE.cpu.pc}
         pcb = self.kernel.table.getCurrent()
-        # pcb = self.kernel.table.getPCB(pid)
         self.kernel.dispatcher.save(pcb)
         self.kernel.ioDeviceController.runOperation(pcb, operation)
         self.kernel.terminate()
@@ -292,8 +292,8 @@ class PCBTable():
 class PCB():
 
     def __init__(self, baseDir, maxDir):
-        # TODO: agregar el estado del pcb (new, ready, running, waiting, terminated)
         self._pid = None
+        self._state = "New"
         self._baseDir = baseDir
         self._maxDir = maxDir
         self._pc = 0
@@ -304,6 +304,14 @@ class PCB():
 
     def setPID(self, pid):
         self._pid = pid
+
+    @property
+    def state(self):
+        return self._state
+
+    @state.setter
+    def state(self, newState):
+        self._state = newState
 
     @property
     def baseDir(self):
@@ -321,7 +329,8 @@ class PCB():
         self._pc = pc
 
     def __repr__(self):
-        return "PCB ---> pid: {pid} baseDir: {baseDir} maxDir: {maxDir} pc: {pc}".format(pid=self.pid, baseDir=self.baseDir, maxDir=self.maxDir, pc=self.pc)
+        return "PCB ---> pid: {pid} state: {state} baseDir: {baseDir} maxDir: {maxDir} pc: {pc}"\
+            .format(pid=self.pid, state=self.state, baseDir=self.baseDir, maxDir=self.maxDir, pc=self.pc)
 
 class Loader():
 

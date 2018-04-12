@@ -1,6 +1,6 @@
-from practica3.hardware import *
-from practica3.so import *
-from practica3 import log
+from hardware import *
+from so import *
+import log
 
 
 ##
