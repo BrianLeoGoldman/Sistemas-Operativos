@@ -100,7 +100,7 @@ class AbstractInterruptionHandler():
 
     def getReady(self, pcb):
         if self.kernel.hasRunning():
-            self.kernel.addToReady(pcb)
+            self.kernel.add(pcb)
             pcb.state = "Ready"
         else:
             self.kernel.setCurrent(pcb)
@@ -108,8 +108,8 @@ class AbstractInterruptionHandler():
             pcb.state = "Running"
 
     def contextSwitch(self):
-        if self.kernel.hasReady():
-            pcb = self.kernel.nextReady()
+        if self.kernel.hasNext():
+            pcb = self.kernel.next()
             self.kernel.setCurrent(pcb)
             self.kernel.dispatcher.load(pcb)
             pcb.state = "Running"
@@ -179,7 +179,7 @@ class Kernel():
         self._loader = Loader()
         self._dispatcher = Dispatcher()
         self._table = PCBTable(30)
-        self._ready = []
+        self._scheduler = Scheduler(FirstComeFirstServed())
 
     @property
     def loader(self):
@@ -198,20 +198,20 @@ class Kernel():
         return self._ioDeviceController
 
     @property
-    def ready(self):
-        return self._ready
+    def scheduler(self):
+        return self._scheduler
 
-    def hasReady(self):
-        return len(self._ready) > 0
+    def hasNext(self):
+        return self.scheduler.hasNext()
 
-    def nextReady(self):
-        return self.ready.pop(0)
+    def next(self):
+        return self.scheduler.next()
+
+    def add(self, pcb):
+        self.scheduler.add(pcb)
 
     def hasRunning(self):
         return self.table.hasCurrent()
-
-    def addToReady(self, pcb):
-        self._ready.append(pcb)
 
     def getCurrent(self):
         return self.table.current
@@ -232,11 +232,11 @@ class Kernel():
         self.dispatcher.start()
 
     def hasFinished(self):
-        return (not self.hasReady()) & (self.ioDeviceController.hasFinished())
+        return (not self.hasNext()) & (self.ioDeviceController.hasFinished())
 
     def terminate(self):
         self.table.current = None
-        HARDWARE.cpu.pc = -1
+        self.dispatcher.idle()
 
 
     def createPCB(self, baseDir, maxDir):
@@ -244,11 +244,38 @@ class Kernel():
         self.table.addPCB(pcb)
         return pcb
 
-    def addReady(self, pcb):
-        self._ready.append(pcb)
-
     def __repr__(self):
         return "Kernel "
+
+
+
+class Scheduler():
+
+    def __init__(self, criteria):
+        self._handler = criteria
+
+    def add(self, pcb):
+        self._handler.add(pcb)
+
+    def next(self):
+        return self._handler.next()
+
+    def hasNext(self):
+        return self._handler.hasNext()
+
+class FirstComeFirstServed():
+
+    def __init__(self):
+        self._queue = [ ]
+
+    def add(self, pcb):
+        self._queue.append(pcb)
+
+    def next(self):
+        return self._queue.pop(0)
+
+    def hasNext(self):
+        return len(self._queue) > 0
 
 
 class PCBTable():
@@ -367,6 +394,10 @@ class Dispatcher():
     def start(self):
         # set CPU program counter at program's first instruction
         HARDWARE.cpu.pc = 0
+
+    def idle(self):
+        # set CPU program counter at -1
+        HARDWARE.cpu.pc = -1
 
 
 
