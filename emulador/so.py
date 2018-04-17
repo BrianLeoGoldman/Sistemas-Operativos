@@ -181,6 +181,8 @@ class Kernel():
         self._table = PCBTable(30)
         self._scheduler = Scheduler(FirstComeFirstServed())
 
+        HARDWARE.clock.addSubscriber(self)
+
     @property
     def loader(self):
         return self._loader
@@ -239,11 +241,13 @@ class Kernel():
         self.table.current = None
         self.dispatcher.idle()
 
-
     def createPCB(self, name, baseDir, maxDir, length):
         pcb = PCB(name, baseDir, maxDir, length)
         self.table.addPCB(pcb)
         return pcb
+
+    def tick(self, tickNbr):
+        self.scheduler.tick(tickNbr)
 
     def __repr__(self):
         return "Kernel "
@@ -254,6 +258,10 @@ class Scheduler():
 
     def __init__(self, criteria):
         self._handler = criteria
+
+    @property
+    def handler(self):
+        return self._handler
 
     def add(self, pcb):
         self._handler.add(pcb)
@@ -267,11 +275,18 @@ class Scheduler():
     def setCurrent(self, pcb):
         self._handler.setCurrent(pcb)
 
+    def tick(self, tickNbr):
+        self.handler.tick(tickNbr)
+
 class FirstComeFirstServed():
 
     def __init__(self):
         self._queue = [ ]
         self._current = None
+
+    @property
+    def current(self):
+        return self._current
 
     def add(self, pcb):
         self._queue.append(pcb)
@@ -285,6 +300,9 @@ class FirstComeFirstServed():
     def setCurrent(self, pcb):
         self._current = pcb
 
+    def tick(self, tickNbr):
+        self.current.tick(tickNbr)
+
 class ShortestJobFirst():
 
     def __init__(self):
@@ -293,7 +311,6 @@ class ShortestJobFirst():
 
     def add(self, pcb):
         remaining = pcb.remaining()
-        ## TODO: hacer que el kernel se suscriba al clock y que el remaining del pcb current se actualice constantemente
         if remaining < self._current.remaining():
             ## TODO: implementar changeCurrent() donde se saca el proceso que esta corriendo y se lo cambia por pcb
             self.changeCurrent()
@@ -310,6 +327,9 @@ class ShortestJobFirst():
 
     def setCurrent(self, pcb):
         self._current = pcb
+
+    def tick(self, tickNbr):
+        self.current.tick()
 
 
 
@@ -394,6 +414,10 @@ class PCB():
     def remaining(self):
         return self._remaining
 
+    @remaining.setter
+    def remaining(self, value):
+        self._remaining = value
+
     @property
     def pc(self):
         return self._pc
@@ -401,13 +425,16 @@ class PCB():
     def setPC(self, pc):
         self._pc = pc
 
+    def tick(self, tickNbr):
+        self.remaining = self.remaining - 1
+
     def __repr__(self):
         return "PCB ---> pid: {pid} program: {name} state: {state} " \
                "baseDir: {baseDir} maxDir: {maxDir} burstTime: {length} pc: {pc}"\
             .format(pid=self.pid, name=self.name, state=self.state,
                     baseDir=self.baseDir, maxDir=self.maxDir, length=self.remaining, pc=self.pc)
 
-    
+
 
 class Loader():
 

@@ -16,6 +16,7 @@ if __name__ == '__main__':
     prg2 = Program("prg2.exe", [ASM.CPU(4), ASM.IO(), ASM.CPU(1)])
     prg3 = Program("prg3.exe", [ASM.CPU(3)])
 
+
     ## setup our hardware and set memory size to 25 "cells"
     HARDWARE.setup(25)
     # add programs to hardware hard disk
@@ -33,3 +34,4 @@ if __name__ == '__main__':
 
     ## start
     HARDWARE.switchOn()
+
