@@ -151,7 +151,7 @@ class NewInterruptionHandler(AbstractInterruptionHandler):
         program = irq.parameters
         baseDir = self.kernel.loader.availableCell
         self.kernel.loader.load(program)
-        pcb = self.kernel.createPCB(baseDir, baseDir + len(program.instructions))
+        pcb = self.kernel.createPCB(program.name, baseDir, baseDir + len(program.instructions), len(program.instructions))
         self.getReady(pcb)
 
 
@@ -218,6 +218,7 @@ class Kernel():
 
     def setCurrent(self, pcb):
         self.table.current = pcb
+        self.scheduler.setCurrent(pcb)
 
     ## emulates a "system call" for programs execution
     def execute(self, programName):
@@ -239,8 +240,8 @@ class Kernel():
         self.dispatcher.idle()
 
 
-    def createPCB(self, baseDir, maxDir):
-        pcb = PCB(baseDir, maxDir)
+    def createPCB(self, name, baseDir, maxDir, length):
+        pcb = PCB(name, baseDir, maxDir, length)
         self.table.addPCB(pcb)
         return pcb
 
@@ -263,10 +264,14 @@ class Scheduler():
     def hasNext(self):
         return self._handler.hasNext()
 
+    def setCurrent(self, pcb):
+        self._handler.setCurrent(pcb)
+
 class FirstComeFirstServed():
 
     def __init__(self):
         self._queue = [ ]
+        self._current = None
 
     def add(self, pcb):
         self._queue.append(pcb)
@@ -277,11 +282,41 @@ class FirstComeFirstServed():
     def hasNext(self):
         return len(self._queue) > 0
 
+    def setCurrent(self, pcb):
+        self._current = pcb
+
+class ShortestJobFirst():
+
+    def __init__(self):
+        self._queue = [ ]
+        self._current = None
+
+    def add(self, pcb):
+        remaining = pcb.remaining()
+        ## TODO: hacer que el kernel se suscriba al clock y que el remaining del pcb current se actualice constantemente
+        if remaining < self._current.remaining():
+            ## TODO: implementar changeCurrent() donde se saca el proceso que esta corriendo y se lo cambia por pcb
+            self.changeCurrent()
+        else:
+            for index, e in enumerate(self._queue):
+                if remaining < e.remaining():
+                    self._queue.insert(index, pcb)
+
+    def next(self):
+        return self._queue.pop(0)
+
+    def hasNext(self):
+        return len(self._queue) > 0
+
+    def setCurrent(self, pcb):
+        self._current = pcb
+
+
 
 class PCBTable():
 
     def __init__(self, size):
-        self._elements = [ ] * size
+        self._elements = [] * size
         self._current = None
         self._counter = 0
 
@@ -319,16 +354,22 @@ class PCBTable():
 
 class PCB():
 
-    def __init__(self, baseDir, maxDir):
+    def __init__(self, name, baseDir, maxDir, length):
         self._pid = None
+        self._name = name
         self._state = "New"
         self._baseDir = baseDir
         self._maxDir = maxDir
+        self._remaining = length
         self._pc = 0
 
     @property
     def pid(self):
         return self._pid
+
+    @property
+    def name(self):
+        return self._name
 
     def setPID(self, pid):
         self._pid = pid
@@ -350,6 +391,10 @@ class PCB():
         return self._maxDir
 
     @property
+    def remaining(self):
+        return self._remaining
+
+    @property
     def pc(self):
         return self._pc
 
@@ -357,8 +402,12 @@ class PCB():
         self._pc = pc
 
     def __repr__(self):
-        return "PCB ---> pid: {pid} state: {state} baseDir: {baseDir} maxDir: {maxDir} pc: {pc}"\
-            .format(pid=self.pid, state=self.state, baseDir=self.baseDir, maxDir=self.maxDir, pc=self.pc)
+        return "PCB ---> pid: {pid} program: {name} state: {state} " \
+               "baseDir: {baseDir} maxDir: {maxDir} burstTime: {length} pc: {pc}"\
+            .format(pid=self.pid, name=self.name, state=self.state,
+                    baseDir=self.baseDir, maxDir=self.maxDir, length=self.remaining, pc=self.pc)
+
+    
 
 class Loader():
 
