@@ -4,12 +4,11 @@ from hardware import *
 import log
 
 
+# emulates a compiled program
+class Program:
 
-## emulates a compiled program
-class Program():
-
-    def __init__(self, name, instructions):
-        self._name = name
+    def __init__(self, program_name, instructions):
+        self._name = program_name
         self._instructions = self.expand(instructions)
 
     @property
@@ -20,22 +19,23 @@ class Program():
     def instructions(self):
         return self._instructions
 
-    def addInstr(self, instruction):
+    def add_instr(self, instruction):
         instruction1 = instruction
         self._instructions.append(instruction1)
 
-    def expand(self, instructions):
+    @staticmethod
+    def expand(instructions):
         expanded = []
         for i in instructions:
             if isinstance(i, list):
-                ## is a list of instructions
+                # is a list of instructions
                 expanded.extend(i)
             else:
-                ## a single instr (a String)
+                # a single instr (a String)
                 expanded.append(i)
 
-        ## now test if last instruction is EXIT
-        ## if not... add an EXIT as final instruction
+        # now test if last instruction is EXIT
+        # if not... add an EXIT as final instruction
         last = expanded[-1]
         if not ASM.isEXIT(last):
             expanded.append(INSTRUCTION_EXIT)
@@ -43,51 +43,58 @@ class Program():
         return expanded
 
     def __repr__(self):
-        return "Program({name}, {instructions})".format(name=self._name, instructions=self._instructions)
+        return "Program({name}, {instructions})"\
+            .format(name=self._name, instructions=self._instructions)
 
 
-## emulates an Input/Output device controller (driver)
-class IoDeviceController():
+# emulates an Input/Output device controller (driver)
+class IoDeviceController:
 
-    def __init__(self, device):
+    def __init__(self, kernel, device):
         self._device = device
         self._waiting_queue = []
-        self._currentPCB = None
+        self._current_pcb = None
+        self._kernel = kernel
 
-    def runOperation(self, pcb, instruction):
+    @property
+    def kernel(self):
+        return self._kernel
+
+    def run_operation(self, pcb, instruction):
         pair = {'pcb': pcb, 'instruction': instruction}
         # append: adds the element at the end of the queue
         self._waiting_queue.append(pair)
-        pcb.state = "Waiting"
+        # changes the state of the PCB
+        self.kernel.change_state(pcb, "Waiting")
         # try to send the instruction to hardware's device (if is idle)
         self.__load_from_waiting_queue_if_apply()
 
-    def getFinishedPCB(self):
-        finishedPCB = self._currentPCB
-        self._currentPCB = None
+    def get_finished_pcb(self):
+        finished_pcb = self._current_pcb
+        self._current_pcb = None
         self.__load_from_waiting_queue_if_apply()
-        return finishedPCB
+        return finished_pcb
 
     def __load_from_waiting_queue_if_apply(self):
         if (len(self._waiting_queue) > 0) and self._device.is_idle:
-            ## pop(): extracts (deletes and return) the first element in queue
+            # pop(): extracts (deletes and return) the first element in queue
             pair = self._waiting_queue.pop(0)
             print(pair)
             pcb = pair['pcb']
             instruction = pair['instruction']
-            self._currentPCB = pcb
+            self._current_pcb = pcb
             self._device.execute(instruction)
 
-    def hasFinished(self):
-        return (len(self._waiting_queue) == 0) & (self._currentPCB is None)
-
+    def has_finished(self):
+        return (len(self._waiting_queue) == 0) & (self._current_pcb is None)
 
     def __repr__(self):
-        return "IoDeviceController for {deviceID} running: {currentPCB} waiting: {waiting_queue}".format(deviceID=self._device.deviceId, currentPCB=self._currentPCB, waiting_queue=self._waiting_queue)
+        return "IoDeviceController for {deviceID} running: {currentPCB} waiting: {waiting_queue}"\
+            .format(deviceID=self._device.deviceId, currentPCB=self._current_pcb, waiting_queue=self._waiting_queue)
 
 
-## emulates the  Interruptions Handlers
-class AbstractInterruptionHandler():
+# emulates the  Interruptions Handlers
+class AbstractInterruptionHandler:
     def __init__(self, kernel):
         self._kernel = kernel
 
@@ -96,92 +103,96 @@ class AbstractInterruptionHandler():
         return self._kernel
 
     def execute(self, irq):
-        log.logger.error("-- EXECUTE MUST BE OVERRIDEN in class {classname}".format(classname=self.__class__.__name__))
+        log.logger.error("-- EXECUTE MUST BE OVERRIDE in class {classname}"
+                         .format(classname=self.__class__.__name__))
 
-    def getReady(self, pcb):
-        if self.kernel.hasRunning():
+    def get_ready(self, pcb):
+        if self.kernel.has_running():
             self.kernel.add(pcb)
-            pcb.state = "Ready"
+            self.kernel.change_state(pcb, "Ready")
         else:
-            self.kernel.setCurrent(pcb)
+            self.kernel.set_current(pcb)
             self.kernel.dispatcher.load(pcb)
-            pcb.state = "Running"
+            self.kernel.change_state(pcb, "Running")
 
-    def contextSwitch(self):
-        if self.kernel.hasNext():
+    def context_switch(self):
+        if self.kernel.has_next():
             pcb = self.kernel.next()
-            self.kernel.setCurrent(pcb)
+            self.kernel.set_current(pcb)
             self.kernel.dispatcher.load(pcb)
-            pcb.state = "Running"
+            self.kernel.change_state(pcb, "Running")
 
 
 class KillInterruptionHandler(AbstractInterruptionHandler):
 
     def execute(self, irq):
         log.logger.info(" Program Finished ")
-        pcb = self.kernel.getCurrent()
-        pcb.state = "Terminated"
+        pcb = self.kernel.scheduler.current
+        # pcb.tick()
+        self.kernel.change_state(pcb, "Terminated")
         self.kernel.terminate()
         self.kernel.dispatcher.save(pcb)
-        self.contextSwitch()
+        self.context_switch()
+
 
 class IoInInterruptionHandler(AbstractInterruptionHandler):
 
     def execute(self, irq):
         operation = irq.parameters
-        pcb = self.kernel.table.getCurrent()
+        pcb = self.kernel.scheduler.current
+        # pcb.tick()
         self.kernel.dispatcher.save(pcb)
-        self.kernel.ioDeviceController.runOperation(pcb, operation)
+        self.kernel.io_device_controller.run_operation(pcb, operation)
         self.kernel.terminate()
-        log.logger.info(self.kernel.ioDeviceController)
-        self.contextSwitch()
+        log.logger.info(self.kernel.io_device_controller)
+        self.context_switch()
 
 
 class IoOutInterruptionHandler(AbstractInterruptionHandler):
 
     def execute(self, irq):
-        pcb = self.kernel.ioDeviceController.getFinishedPCB()
-        log.logger.info(self.kernel.ioDeviceController)
-        self.getReady(pcb)
+        pcb = self.kernel.io_device_controller.get_finished_pcb()
+        log.logger.info(self.kernel.io_device_controller)
+        self.get_ready(pcb)
 
 
 class NewInterruptionHandler(AbstractInterruptionHandler):
 
     def execute(self, irq):
         program = irq.parameters
-        baseDir = self.kernel.loader.availableCell
+        base_dir = self.kernel.loader.available_cell
+        length = len(program.instructions)
         self.kernel.loader.load(program)
-        pcb = self.kernel.createPCB(program.name, baseDir, baseDir + len(program.instructions), len(program.instructions))
-        self.getReady(pcb)
-
+        pcb = self.kernel.create_pcb(program.name, base_dir, base_dir + length)
+        self.get_ready(pcb)
 
 
 # emulates the core of an Operative System
-class Kernel():
+class Kernel:
 
     def __init__(self):
-        ## setup interruption handlers
-        killHandler = KillInterruptionHandler(self)
-        HARDWARE.interruptVector.register(KILL_INTERRUPTION_TYPE, killHandler)
+        # setup interruption handlers
+        kill_handler = KillInterruptionHandler(self)
+        HARDWARE.interruptVector.register(KILL_INTERRUPTION_TYPE, kill_handler)
 
-        ioInHandler = IoInInterruptionHandler(self)
-        HARDWARE.interruptVector.register(IO_IN_INTERRUPTION_TYPE, ioInHandler)
+        io_in_handler = IoInInterruptionHandler(self)
+        HARDWARE.interruptVector.register(IO_IN_INTERRUPTION_TYPE, io_in_handler)
 
-        ioOutHandler = IoOutInterruptionHandler(self)
-        HARDWARE.interruptVector.register(IO_OUT_INTERRUPTION_TYPE, ioOutHandler)
+        io_out_handler = IoOutInterruptionHandler(self)
+        HARDWARE.interruptVector.register(IO_OUT_INTERRUPTION_TYPE, io_out_handler)
 
-        newHandler = NewInterruptionHandler(self)
-        HARDWARE.interruptVector.register(NEW_INTERRUPTION_TYPE, newHandler)
+        new_handler = NewInterruptionHandler(self)
+        HARDWARE.interruptVector.register(NEW_INTERRUPTION_TYPE, new_handler)
 
-        ## controls the Hardware's I/O Device
-        self._ioDeviceController = IoDeviceController(HARDWARE.ioDevice)
+        # controls the Hardware's I/O Device
+        self._io_device_controller = IoDeviceController(self, HARDWARE.ioDevice)
 
         self._loader = Loader()
         self._dispatcher = Dispatcher()
         self._table = PCBTable(30)
-        self._scheduler = Scheduler(FirstComeFirstServed())
+        self._scheduler = FirstComeFirstServed(self)
 
-        HARDWARE.clock.addSubscriber(self)
+        # HARDWARE.clock.addSubscriber(self)
 
     @property
     def loader(self):
@@ -196,15 +207,15 @@ class Kernel():
         return self._table
 
     @property
-    def ioDeviceController(self):
-        return self._ioDeviceController
+    def io_device_controller(self):
+        return self._io_device_controller
 
     @property
     def scheduler(self):
         return self._scheduler
 
-    def hasNext(self):
-        return self.scheduler.hasNext()
+    def has_next(self):
+        return self.scheduler.has_next()
 
     def next(self):
         return self.scheduler.next()
@@ -212,77 +223,90 @@ class Kernel():
     def add(self, pcb):
         self.scheduler.add(pcb)
 
-    def hasRunning(self):
-        return self.table.hasCurrent()
+    def has_running(self):
+        return self.scheduler.has_current()
 
-    def getCurrent(self):
-        return self.table.current
+    def get_current(self):
+        return self.scheduler.current
 
-    def setCurrent(self, pcb):
-        self.table.current = pcb
-        self.scheduler.setCurrent(pcb)
+    def set_current(self, pcb):
+        self.change_state(pcb, "Running")
+        self.scheduler.set_current(pcb)
 
-    ## emulates a "system call" for programs execution
-    def execute(self, programName):
-        instructions = HARDWARE.disk.getProgram(programName)
-        program = Program(programName, instructions)
-        newIRQ = IRQ(NEW_INTERRUPTION_TYPE, program)
-        HARDWARE.interruptVector.handle(newIRQ)
+    # emulates a "system call" for programs execution
+    def execute(self, program_name):
+        instructions = HARDWARE.disk.getProgram(program_name)
+        program = Program(program_name, instructions)
+        new_irq = IRQ(NEW_INTERRUPTION_TYPE, program)
+        HARDWARE.interruptVector.handle(new_irq)
 
-        log.logger.info("\n Executing program: {name}".format(name=programName))
+        log.logger.info("\n Executing program: {name}"
+                        .format(name=program_name))
         log.logger.info(HARDWARE)
 
         self.dispatcher.start()
 
-    def hasFinished(self):
-        return (not self.hasNext()) & (self.ioDeviceController.hasFinished())
+    def has_finished(self):
+        return (not self.has_next()) & (self.io_device_controller.has_finished())
 
     def terminate(self):
+        self.scheduler.set_current(None)
         self.table.current = None
         self.dispatcher.idle()
 
-    def createPCB(self, name, baseDir, maxDir, length):
-        pcb = PCB(name, baseDir, maxDir, length)
-        self.table.addPCB(pcb)
+    def create_pcb(self, name, base_dir, max_dir):
+        pcb = PCB(name, base_dir, max_dir)
+        self.table.add_pcb(pcb)
         return pcb
 
-    def tick(self, tickNbr):
-        self.scheduler.tick(tickNbr)
+    # def switchPCBs(self, currentPCB, newPCB):
+    #     self.dispatcher.save(currentPCB)
+    #     toReady = currentPCB
+    #     self.set_current(newPCB)
+    #     self.dispatcher.load(newPCB)
+    #     self.scheduler.add(toReady)
+
+    def change_state(self, pcb, new_state):
+        pcb.state = new_state
+        # self.table.updateState(pcb.pid, newState)
+        if new_state == "Running":
+            self.table.current = pcb
+
+    # def tick(self, tickNbr):
+    #     self.table.tick()
 
     def __repr__(self):
         return "Kernel "
 
 
+class SchedulingAlgorithm:
+    # 1) fcfs (no exprop) - 2) round robin (tiempo fijo a cada uno: quantum, exprop)
+    # 3) priority (rango finito, exprop o no exprop) - 4) sjf
 
-class Scheduler():
-
-    def __init__(self, criteria):
-        self._handler = criteria
+    def __init__(self, kernel):
+        self._current = None
+        self._kernel = kernel
 
     @property
-    def handler(self):
-        return self._handler
+    def kernel(self):
+        return self._kernel
 
-    def add(self, pcb):
-        self._handler.add(pcb)
+    @property
+    def current(self):
+        return self._current
 
-    def next(self):
-        return self._handler.next()
+    def has_current(self):
+        return not (self.current is None)
 
-    def hasNext(self):
-        return self._handler.hasNext()
+    def set_current(self, pcb):
+        self._current = pcb
 
-    def setCurrent(self, pcb):
-        self._handler.setCurrent(pcb)
 
-    def tick(self, tickNbr):
-        self.handler.tick(tickNbr)
+class FirstComeFirstServed(SchedulingAlgorithm):
 
-class FirstComeFirstServed():
-
-    def __init__(self):
-        self._queue = [ ]
-        self._current = None
+    def __init__(self, kernel):
+        super().__init__(kernel)
+        self._queue = []
 
     @property
     def current(self):
@@ -290,97 +314,110 @@ class FirstComeFirstServed():
 
     def add(self, pcb):
         self._queue.append(pcb)
+        self.kernel.change_state(pcb, "Ready")
 
     def next(self):
         return self._queue.pop(0)
 
-    def hasNext(self):
+    def has_next(self):
         return len(self._queue) > 0
 
-    def setCurrent(self, pcb):
-        self._current = pcb
-
-    def tick(self, tickNbr):
-        self.current.tick(tickNbr)
-
-class ShortestJobFirst():
-
-    def __init__(self):
-        self._queue = [ ]
-        self._current = None
-
-    def add(self, pcb):
-        remaining = pcb.remaining()
-        if remaining < self._current.remaining():
-            ## TODO: implementar changeCurrent() donde se saca el proceso que esta corriendo y se lo cambia por pcb
-            self.changeCurrent()
-        else:
-            for index, e in enumerate(self._queue):
-                if remaining < e.remaining():
-                    self._queue.insert(index, pcb)
-
-    def next(self):
-        return self._queue.pop(0)
-
-    def hasNext(self):
-        return len(self._queue) > 0
-
-    def setCurrent(self, pcb):
-        self._current = pcb
-
-    def tick(self, tickNbr):
-        self.current.tick()
+    def print_ready(self):
+        for pcb in self._queue:
+            print(pcb)
 
 
+class RoundRobin(SchedulingAlgorithm):
 
-class PCBTable():
+    def __init__(self, kernel):
+        super().__init__(kernel)
+        self._queue = []
+        self._quantum = 2
+
+
+# class ShortestJobFirst(SchedulingAlgorithm):
+#
+#     def __init__(self, kernel):
+#         super().__init__(kernel)
+#         self._queue = []
+#
+#     def add(self, pcb):
+#         time = pcb.remaining
+#         if time < self._current.remaining:
+#             oldCurrent = self.current
+#             self.setCurrent(None)
+#             self.kernel.switchPCBs(oldCurrent, pcb)
+#         else:
+#             self._queue.append(pcb)
+#             self.kernel.changeState(pcb, "Ready")
+#             sorted(self._queue, key=lambda time: pcb.remaining)  # sort by time CPU burst
+#
+#     def next(self):
+#         return self._queue.pop(0)
+#
+#     def hasNext(self):
+#         return len(self._queue) > 0
+#
+#     def printReady(self):
+#         for pcb in self._queue:
+#             print(pcb)
+
+
+class PCBTable:
 
     def __init__(self, size):
         self._elements = [] * size
-        self._current = None
         self._counter = 0
+        self._current = None
+
+    @property
+    def elements(self):
+        return self._elements
+
+    @property
+    def counter(self):
+        return self._counter
+
+    def add_counter(self):
+        self._counter = self._counter + 1
 
     @property
     def current(self):
         return self._current
 
     @current.setter
-    def current(self, current):
-        self._current = current
+    def current(self, pcb):
+        self._current = pcb
 
-    @property
-    def counter(self):
-        return self._counter
-
-    def addCounter(self):
-        self._counter = self._counter + 1
-
-    def hasCurrent(self):
-        return not (self.current is None)
-
-    def getCurrent(self):
-        return self.current
-
-    def addPCB(self, pcb):
-        pcb.setPID(self.counter)
-        self.addCounter()
+    def add_pcb(self, pcb):
+        pcb.set_pid(self.counter)
+        self.add_counter()
         self._elements.append(pcb)
         return pcb
 
-    def getPCB(self, pid):
+    def get_pcb(self, pid):
         pcb = self._elements[pid]
         return pcb
 
+    def update_state(self, pid, state):
+        for pcb in self.elements:
+            if pcb.pid == pid:
+                pcb.state = state
 
-class PCB():
+    # def tick(self):
+    #     if not self.current is None:
+    #         self._current.tick()
 
-    def __init__(self, name, baseDir, maxDir, length):
+
+class PCB:
+
+    def __init__(self, name, base_dir, max_dir):
         self._pid = None
         self._name = name
         self._state = "New"
-        self._baseDir = baseDir
-        self._maxDir = maxDir
-        self._remaining = length
+        self._base_dir = base_dir
+        self._max_dir = max_dir
+        # self._remaining = length
         self._pc = 0
 
     @property
@@ -391,7 +428,7 @@ class PCB():
     def name(self):
         return self._name
 
-    def setPID(self, pid):
+    def set_pid(self, pid):
         self._pid = pid
 
     @property
@@ -399,83 +436,82 @@ class PCB():
         return self._state
 
     @state.setter
-    def state(self, newState):
-        self._state = newState
+    def state(self, new_state):
+        self._state = new_state
 
     @property
-    def baseDir(self):
-        return self._baseDir
+    def base_dir(self):
+        return self._base_dir
 
     @property
-    def maxDir(self):
-        return self._maxDir
+    def max_dir(self):
+        return self._max_dir
 
-    @property
-    def remaining(self):
-        return self._remaining
-
-    @remaining.setter
-    def remaining(self, value):
-        self._remaining = value
+    # @property
+    # def remaining(self):
+    #     return self._remaining
+    #
+    # @remaining.setter
+    # def remaining(self, value):
+    #     self._remaining = value
 
     @property
     def pc(self):
         return self._pc
 
-    def setPC(self, pc):
+    def set_pc(self, pc):
         self._pc = pc
 
-    def tick(self, tickNbr):
-        self.remaining = self.remaining - 1
+    # def tick(self):
+    #     self.remaining = self.remaining - 1
 
     def __repr__(self):
         return "PCB ---> pid: {pid} program: {name} state: {state} " \
-               "baseDir: {baseDir} maxDir: {maxDir} burstTime: {length} pc: {pc}"\
+               "baseDir: {baseDir} maxDir: {maxDir} pc: {pc}" \
             .format(pid=self.pid, name=self.name, state=self.state,
-                    baseDir=self.baseDir, maxDir=self.maxDir, length=self.remaining, pc=self.pc)
+                    baseDir=self.base_dir, maxDir=self.max_dir, pc=self.pc)
 
 
-
-class Loader():
+class Loader:
 
     def __init__(self):
-        self._availableCell = 0
+        self._available_cell = 0
 
     @property
-    def availableCell(self):
-        return self._availableCell
+    def available_cell(self):
+        return self._available_cell
 
-    @availableCell.setter
-    def availableCell(self, value):
-        self._availableCell = value
+    @available_cell.setter
+    def available_cell(self, value):
+        self._available_cell = value
 
     def load(self, program):
-        progSize = len(program.instructions)
-        for index in range(0, progSize):
+        prog_size = len(program.instructions)
+        for index in range(0, prog_size):
             inst = program.instructions[index]
-            HARDWARE.memory.put(self.availableCell + index, inst)
-        self.availableCell = self.availableCell + progSize
+            HARDWARE.memory.put(self.available_cell + index, inst)
+        self.available_cell = self.available_cell + prog_size
 
-class Dispatcher():
 
-    def save(self, pcb):
-        pcb.setPC(HARDWARE.cpu.pc)
+class Dispatcher:
+
+    @staticmethod
+    def save(pcb):
+        pcb.set_pc(HARDWARE.cpu.pc)
         HARDWARE.cpu.pc = -1
 
-    def load(self, pcb):
-        HARDWARE.mmu.baseDir = pcb.baseDir
-        HARDWARE.mmu.limit = pcb.maxDir
+    @staticmethod
+    def load(pcb):
+        HARDWARE.mmu.base_dir = pcb.base_dir
+        HARDWARE.mmu.limit = pcb.max_dir
         HARDWARE.cpu.pc = pcb.pc
 
-    def start(self):
+    @staticmethod
+    def start():
         # set CPU program counter at program's first instruction
         HARDWARE.cpu.pc = 0
 
-    def idle(self):
+    @staticmethod
+    def idle():
         # set CPU program counter at -1
         HARDWARE.cpu.pc = -1
-
-
-
-
-

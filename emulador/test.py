@@ -1,36 +1,30 @@
-from hardware import *
 from so import *
 import log
 
-##
-##  MAIN
-##
+#
+#  MAIN
+#
 if __name__ == '__main__':
-    log.setupLogger()
+    log.setup_logger()
     log.logger.info('Starting emulator')
 
-    ## create 3 programs
-    ###################
     prg1 = Program("prg1.exe", [ASM.CPU(2), ASM.IO(), ASM.CPU(1)])
     prg2 = Program("prg2.exe", [ASM.CPU(2), ASM.IO(), ASM.CPU(2)])
     prg3 = Program("prg3.exe", [ASM.CPU(2), ASM.IO(), ASM.CPU(3)])
+    prg4 = Program("prg4.exe", [ASM.CPU(2)])
 
-
-    ## setup our hardware and set memory size to 25 "cells"
+    # setup our hardware and set memory size to 25 "cells"
     HARDWARE.setup(25)
     # add programs to hardware hard disk
     HARDWARE.addProgram(prg1)
     HARDWARE.addProgram(prg2)
     HARDWARE.addProgram(prg3)
+    HARDWARE.addProgram(prg4)
 
-    ## new create the Operative System Kernel
+    # new create the Operative System Kernel
     kernel = Kernel()
 
-    # execute all programs "concurrently"
-    kernel.execute("prg1.exe")
-    kernel.execute("prg2.exe")
-    kernel.execute("prg3.exe")
-
+    # variable used to count the tick number
     tickNbr = 0
 
 
@@ -39,24 +33,43 @@ if __name__ == '__main__':
         HARDWARE.clock.tick(tickNbr)
         tickNbr += 1
 
-    def current():
-        print(kernel.getCurrent())
+    def print_current():
+        print(kernel.get_current())
 
-    def memory():
+    def print_memory():
         print(HARDWARE.memory)
 
+    def print_ready():
+        kernel.scheduler.print_ready()
 
-    processDictionary = {
-        "tick": tick,
-        "current": current,
-        "memory": memory
-}
+    def print_io():
+        print(kernel.io_device_controller)
 
-    def processInput(name):
+    def print_pcb_table():
+        pcb_list = kernel.table.elements
+        print("Current process: " + str(kernel.table.current))
+        for pcb in pcb_list:
+            print(pcb)
+
+    def execute_program():
+        name = input()
+        kernel.execute(name)
+
+    def process_input(name):
         processDictionary[name]()
 
-    ## start
 
-    while(True):
+    # dictionary with all inputs and its effect
+    processDictionary = {
+        "tick": tick,
+        "current": print_current,
+        "memory": print_memory,
+        "ready": print_ready,
+        "io": print_io,
+        "table": print_pcb_table,
+        "execute": execute_program
+    }
+
+    while True:
         text = input()
-        processInput(text)
+        process_input(text)

@@ -2,8 +2,9 @@ import logging
 
 logger = logging.getLogger()
 
-def setupLogger():
-    ## Configure Logger
+
+def setup_logger():
+    # Configure Logger
     handler = logging.StreamHandler()
     formatter = logging.Formatter('%(message)s')
     handler.setFormatter(formatter)

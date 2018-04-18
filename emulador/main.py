@@ -7,7 +7,7 @@ import log
 ##  MAIN 
 ##
 if __name__ == '__main__':
-    log.setupLogger()
+    log.setup_logger()
     log.logger.info('Starting emulator')
 
     ## create 3 programs
