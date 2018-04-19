@@ -2,6 +2,7 @@
 
 from hardware import *
 import log
+import random
 
 
 # emulates a compiled program
@@ -116,11 +117,7 @@ class AbstractInterruptionHandler:
             self.kernel.change_state(pcb, "Running")
 
     def context_switch(self):
-        if self.kernel.has_next():
-            pcb = self.kernel.next()
-            self.kernel.set_current(pcb)
-            self.kernel.dispatcher.load(pcb)
-            self.kernel.change_state(pcb, "Running")
+        self.kernel.context_switch()
 
 
 class KillInterruptionHandler(AbstractInterruptionHandler):
@@ -188,7 +185,10 @@ class Kernel:
         self._loader = Loader()
         self._dispatcher = Dispatcher()
         self._table = PCBTable(30)
-        self._scheduler = FirstComeFirstServed(self)
+        # self._scheduler = FirstComeFirstServed(self)
+        self._scheduler = RoundRobin(self, 2)
+        # self._scheduler = Priority(self)
+        # self._scheduler = ShortestJobFirst(self)
 
         HARDWARE.clock.addSubscriber(self)
 
@@ -257,20 +257,19 @@ class Kernel:
         self.table.add_pcb(pcb)
         return pcb
 
-    # def switchPCBs(self, currentPCB, newPCB):
-    #     self.dispatcher.save(currentPCB)
-    #     toReady = currentPCB
-    #     self.set_current(newPCB)
-    #     self.dispatcher.load(newPCB)
-    #     self.scheduler.add(toReady)
+    def context_switch(self):
+        if self.has_next():
+            pcb = self.next()
+            self.set_current(pcb)
+            self.dispatcher.load(pcb)
+            self.change_state(pcb, "Running")
 
     def change_state(self, pcb, new_state):
         pcb.state = new_state
-        # self.table.updateState(pcb.pid, newState)
         if new_state == "Running":
             self.table.current = pcb
 
-    def tick(self, tickNbr):
+    def tick(self, tick_nbr):
         self.scheduler.tick()
 
     def __repr__(self):
@@ -278,8 +277,6 @@ class Kernel:
 
 
 class SchedulingAlgorithm:
-    # 2) round robin (tiempo fijo a cada uno: quantum, exprop)
-    # 3) priority (rango finito, exprop o no exprop) - 4) sjf
 
     def __init__(self, kernel):
         self._current = None
@@ -349,10 +346,13 @@ class RoundRobin(SchedulingAlgorithm):
     def tick(self):
         self.counter -= 1
         if self.counter == 0 & self.has_next():
-            out = self.current
-            self.kernel.dispatcher.save(out)
-            self._queue.append(out)
-            # TODO: do the context switch
+            log.logger.info("Process time finished")
+            old_pcb = self.current
+            self.kernel.dispatcher.save(old_pcb)
+            self.add(old_pcb)
+            self.kernel.context_switch()
+            # TODO: when there is a context switch from an interruption, counter should restart
+            # TODO: problem case when the current process reaches an exit or an i/o in
             self.counter = self._quantum
 
     def print_ready(self):
@@ -360,32 +360,70 @@ class RoundRobin(SchedulingAlgorithm):
             print(pcb)
 
 
-# class ShortestJobFirst(SchedulingAlgorithm):
-#
-#     def __init__(self, kernel):
-#         super().__init__(kernel)
-#         self._queue = []
-#
-#     def add(self, pcb):
-#         time = pcb.remaining
-#         if time < self._current.remaining:
-#             oldCurrent = self.current
-#             self.setCurrent(None)
-#             self.kernel.switchPCBs(oldCurrent, pcb)
-#         else:
-#             self._queue.append(pcb)
-#             self.kernel.changeState(pcb, "Ready")
-#             sorted(self._queue, key=lambda time: pcb.remaining)  # sort by time CPU burst
-#
-#     def next(self):
-#         return self._queue.pop(0)
-#
-#     def hasNext(self):
-#         return len(self._queue) > 0
-#
-#     def printReady(self):
-#         for pcb in self._queue:
-#             print(pcb)
+class Priority(SchedulingAlgorithm):
+    # Each process is assigned a priority, and the runnable process with the highest priority is allowed to run
+    # The priority has to be a value between a finite range
+    # Non-preemptive
+    # Preemptive
+
+    def __init__(self, kernel):
+        super().__init__(kernel)
+        self._queue = []
+
+    def add(self, pcb):
+        pass
+        # TODO: implement add method
+
+    def next(self):
+        return self._queue.pop(0)
+
+    def has_next(self):
+        return len(self._queue) > 0
+
+    def tick(self):
+        pass
+        # TODO: implement tick method
+
+    def print_ready(self):
+        for pcb in self._queue:
+            print(pcb)
+
+
+class ShortestJobFirst(SchedulingAlgorithm):
+    # The process with the shortest CPU burst is allowed to run
+    # Non-preemptive
+    # Preemptive
+
+    def __init__(self, kernel):
+        super().__init__(kernel)
+        self._queue = []
+
+    def add(self, pcb):
+        pass
+        # TODO: implement add method
+        # time = pcb.remaining
+        # if time < self._current.remaining:
+        #     oldCurrent = self.current
+        #     self.setCurrent(None)
+        #     self.kernel.switchPCBs(oldCurrent, pcb)
+        # else:
+        #     self._queue.append(pcb)
+        #     self.kernel.changeState(pcb, "Ready")
+        #     sorted(self._queue, key=lambda time: pcb.remaining)  # sort by time CPU burst
+
+    def next(self):
+        return self._queue.pop(0)
+
+    def has_next(self):
+        return len(self._queue) > 0
+
+    def tick(self):
+        pass
+        # TODO: implement tick method
+
+    def print_ready(self):
+        for pcb in self._queue:
+            print(pcb)
 
 
 class PCBTable:
@@ -429,10 +467,6 @@ class PCBTable:
             if pcb.pid == pid:
                 pcb.state = state
 
-    # def tick(self):
-    #     if not self.current is None:
-    #         self._current.tick()
-
 
 class PCB:
 
@@ -442,8 +476,8 @@ class PCB:
         self._state = "New"
         self._base_dir = base_dir
         self._max_dir = max_dir
-        # self._remaining = length
         self._pc = 0
+        self._priority = random.randint(1, 11)
 
     @property
     def pid(self):
@@ -472,14 +506,6 @@ class PCB:
     def max_dir(self):
         return self._max_dir
 
-    # @property
-    # def remaining(self):
-    #     return self._remaining
-    #
-    # @remaining.setter
-    # def remaining(self, value):
-    #     self._remaining = value
-
     @property
     def pc(self):
         return self._pc
@@ -487,14 +513,15 @@ class PCB:
     def set_pc(self, pc):
         self._pc = pc
 
-    # def tick(self):
-    #     self.remaining = self.remaining - 1
+    @property
+    def priority(self):
+        return self._priority
 
     def __repr__(self):
         return "PCB ---> pid: {pid} program: {name} state: {state} " \
-               "baseDir: {baseDir} maxDir: {maxDir} pc: {pc}" \
+               "baseDir: {baseDir} maxDir: {maxDir} priority: {priority} pc: {pc}" \
             .format(pid=self.pid, name=self.name, state=self.state,
-                    baseDir=self.base_dir, maxDir=self.max_dir, pc=self.pc)
+                    baseDir=self.base_dir, maxDir=self.max_dir, priority=self.priority, pc=self.pc)
 
 
 class Loader:
