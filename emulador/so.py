@@ -128,7 +128,6 @@ class KillInterruptionHandler(AbstractInterruptionHandler):
     def execute(self, irq):
         log.logger.info(" Program Finished ")
         pcb = self.kernel.scheduler.current
-        # pcb.tick()
         self.kernel.change_state(pcb, "Terminated")
         self.kernel.terminate()
         self.kernel.dispatcher.save(pcb)
@@ -140,7 +139,6 @@ class IoInInterruptionHandler(AbstractInterruptionHandler):
     def execute(self, irq):
         operation = irq.parameters
         pcb = self.kernel.scheduler.current
-        # pcb.tick()
         self.kernel.dispatcher.save(pcb)
         self.kernel.io_device_controller.run_operation(pcb, operation)
         self.kernel.terminate()
@@ -192,7 +190,7 @@ class Kernel:
         self._table = PCBTable(30)
         self._scheduler = FirstComeFirstServed(self)
 
-        # HARDWARE.clock.addSubscriber(self)
+        HARDWARE.clock.addSubscriber(self)
 
     @property
     def loader(self):
@@ -272,15 +270,15 @@ class Kernel:
         if new_state == "Running":
             self.table.current = pcb
 
-    # def tick(self, tickNbr):
-    #     self.table.tick()
+    def tick(self, tickNbr):
+        self.scheduler.tick()
 
     def __repr__(self):
         return "Kernel "
 
 
 class SchedulingAlgorithm:
-    # 1) fcfs (no exprop) - 2) round robin (tiempo fijo a cada uno: quantum, exprop)
+    # 2) round robin (tiempo fijo a cada uno: quantum, exprop)
     # 3) priority (rango finito, exprop o no exprop) - 4) sjf
 
     def __init__(self, kernel):
@@ -303,14 +301,12 @@ class SchedulingAlgorithm:
 
 
 class FirstComeFirstServed(SchedulingAlgorithm):
+    # Processes are assigned the CPU in the order they request it
+    # Non-preemptive (lets a process run until it blocks)
 
     def __init__(self, kernel):
         super().__init__(kernel)
         self._queue = []
-
-    @property
-    def current(self):
-        return self._current
 
     def add(self, pcb):
         self._queue.append(pcb)
@@ -322,17 +318,46 @@ class FirstComeFirstServed(SchedulingAlgorithm):
     def has_next(self):
         return len(self._queue) > 0
 
+    def tick(self):
+        pass
+
     def print_ready(self):
         for pcb in self._queue:
             print(pcb)
 
 
 class RoundRobin(SchedulingAlgorithm):
+    # Each process is assigned a time interval (quantum), during which it is allowed to run
+    # Preemptive (lets a process run for a maximum of some fixed time)
 
-    def __init__(self, kernel):
+    def __init__(self, kernel, value):
         super().__init__(kernel)
         self._queue = []
-        self._quantum = 2
+        self._quantum = value
+        self.counter = value
+
+    def add(self, pcb):
+        self._queue.append(pcb)
+        self.kernel.change_state(pcb, "Ready")
+
+    def next(self):
+        return self._queue.pop(0)
+
+    def has_next(self):
+        return len(self._queue) > 0
+
+    def tick(self):
+        self.counter -= 1
+        if self.counter == 0 & self.has_next():
+            out = self.current
+            self.kernel.dispatcher.save(out)
+            self._queue.append(out)
+            # TODO: do the context switch
+            self.counter = self._quantum
+
+    def print_ready(self):
+        for pcb in self._queue:
+            print(pcb)
 
 
 # class ShortestJobFirst(SchedulingAlgorithm):

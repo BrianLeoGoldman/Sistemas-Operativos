@@ -27,11 +27,18 @@ if __name__ == '__main__':
     # variable used to count the tick number
     tickNbr = 0
 
+    # variable used to run the test
+    running = True
+
 
     def tick():
         global tickNbr
         HARDWARE.clock.tick(tickNbr)
         tickNbr += 1
+
+    def do_ticks():
+        times = input()
+        HARDWARE.clock.do_ticks(int(times))
 
     def print_current():
         print(kernel.get_current())
@@ -55,6 +62,10 @@ if __name__ == '__main__':
         name = input()
         kernel.execute(name)
 
+    def finish_test():
+        global running
+        running = False
+
     def process_input(name):
         processDictionary[name]()
 
@@ -62,14 +73,16 @@ if __name__ == '__main__':
     # dictionary with all inputs and its effect
     processDictionary = {
         "tick": tick,
+        "ticks": do_ticks,
         "current": print_current,
         "memory": print_memory,
         "ready": print_ready,
         "io": print_io,
         "table": print_pcb_table,
-        "execute": execute_program
+        "execute": execute_program,
+        "exit": finish_test
     }
 
-    while True:
+    while running:
         text = input()
         process_input(text)
