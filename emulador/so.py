@@ -199,8 +199,8 @@ class Kernel:
         self._dispatcher = Dispatcher(self)
         self._table = PCBTable(30)
         # self._scheduler = FirstComeFirstServed(self)
-        self._scheduler = RoundRobin(self, 4)
-        # self._scheduler = Priority(self)
+        # self._scheduler = RoundRobin(self, 4)
+        self._scheduler = Priority(self, False)
         # self._scheduler = ShortestJobFirst(self)
 
     @property
@@ -349,23 +349,35 @@ class Priority(SchedulingAlgorithm):
     # Non-preemptive
     # Preemptive
 
-    def __init__(self, kernel):
+    def __init__(self, kernel, boolean):
         super().__init__(kernel)
-        self._queue = []
+        self._is_preemptive = boolean
+        self._priorities = [[], [], [], [], []]
+        # for i in self._priorities:
+        #     self._priorities[i] = []
+        self._has_pcbs = [False, False, False, False, False]
 
     def add(self, pcb):
-        pass
-    # TODO: implement add
+        priority = pcb.priority
+        print(pcb)
+        log.logger.info("La prioridad es" + str(priority))
+        log.logger.info("La cantidad de colas es " + str(len(self._priorities)))
+        self._priorities[priority].append(pcb)
+        self._has_pcbs[priority] = True
 
     def next(self):
-        return self._queue.pop(0)
+        # TODO: aging is implemented here
+        i = self._has_pcbs.index(True)
+        if len(self._priorities[i]) == 1:
+            self._has_pcbs[i] = False
+        return self._priorities[i].pop(0)
 
     def has_next(self):
-        return len(self._queue) > 0
+        return any(b == True for b in self._has_pcbs)
 
     def print_ready(self):
-        for pcb in self._queue:
-            print(pcb)
+        for i in range(0, 5):
+            print(self._priorities[i])
 
 
 class ShortestJobFirst(SchedulingAlgorithm):
@@ -452,7 +464,7 @@ class PCB:
         self._base_dir = base_dir
         self._max_dir = max_dir
         self._pc = 0
-        self._priority = random.randint(1, 11)
+        self._priority = random.randint(0, 4)
         # TODO: review priority
 
     @property
