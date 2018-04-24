@@ -147,10 +147,10 @@ class Timer:
         log.logger.info("Timer is set on with quantum " + str(self._quantum) + " and counter " + str(self._counter))
 
     def reset(self):
-        log.logger.info("Timer reset")
         if self._is_on:
+            log.logger.info("Timer reset")
             self._counter = self._quantum - 1
-            # TODO: this -1 is a problem
+            # TODO: this -1 is a problem?
 
 
 ## emulates the Hard Disk Drive (HDD)

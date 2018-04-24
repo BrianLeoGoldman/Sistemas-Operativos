@@ -65,8 +65,6 @@ class IoDeviceController:
         pair = {'pcb': pcb, 'instruction': instruction}
         # append: adds the element at the end of the queue
         self._waiting_queue.append(pair)
-        # changes the state of the PCB
-        self.kernel.change_state(pcb, "Waiting")
         # try to send the instruction to hardware's device (if is idle)
         self.__load_from_waiting_queue_if_apply()
 
@@ -80,7 +78,7 @@ class IoDeviceController:
         if (len(self._waiting_queue) > 0) and self._device.is_idle:
             # pop(): extracts (deletes and return) the first element in queue
             pair = self._waiting_queue.pop(0)
-            print(pair)
+            # print(pair)
             pcb = pair['pcb']
             instruction = pair['instruction']
             self._current_pcb = pcb
@@ -136,6 +134,7 @@ class IoInInterruptionHandler(AbstractInterruptionHandler):
     def execute(self, irq):
         operation = irq.parameters
         pcb = self.kernel.scheduler.current
+        self.kernel.change_state(pcb, "Waiting")
         self.kernel.dispatcher.save(pcb)
         self.kernel.io_device_controller.run_operation(pcb, operation)
         self.kernel.terminate()
@@ -163,6 +162,7 @@ class NewInterruptionHandler(AbstractInterruptionHandler):
 
 
 class TimeOutInterruptionHandler(AbstractInterruptionHandler):
+    # TODO: check handler
 
     def execute(self, irq):
         if self.kernel.has_running():
@@ -170,7 +170,6 @@ class TimeOutInterruptionHandler(AbstractInterruptionHandler):
             self.kernel.dispatcher.save(old_pcb)
             self.kernel.scheduler.add(old_pcb)
             self.kernel.dispatcher.context_switch()
-        # TODO: check handler
 
 
 # emulates the core of an Operative System
@@ -249,11 +248,9 @@ class Kernel:
         program = Program(program_name, instructions)
         new_irq = IRQ(NEW_INTERRUPTION_TYPE, program)
         HARDWARE.interruptVector.handle(new_irq)
-
         log.logger.info("\n Executing program: {name}"
                         .format(name=program_name))
-        log.logger.info(HARDWARE)
-
+        # log.logger.info(HARDWARE)
         self.dispatcher.start()
 
     def has_finished(self):
@@ -358,6 +355,7 @@ class Priority(SchedulingAlgorithm):
 
     def add(self, pcb):
         pass
+    # TODO: implement add
 
     def next(self):
         return self._queue.pop(0)
@@ -381,6 +379,7 @@ class ShortestJobFirst(SchedulingAlgorithm):
 
     def add(self, pcb):
         pass
+        # TODO: implement add
         # time = pcb.remaining
         # if time < self._current.remaining:
         #     oldCurrent = self.current
@@ -454,6 +453,7 @@ class PCB:
         self._max_dir = max_dir
         self._pc = 0
         self._priority = random.randint(1, 11)
+        # TODO: review priority
 
     @property
     def pid(self):
