@@ -117,29 +117,36 @@ class AbstractInterruptionHandler:
             self.kernel.change_state(pcb, "Running")
 
     def context_switch(self):
-        self.kernel.context_switch()
+        self.kernel.dispatcher.context_switch()
+
+    # def notify_interruption(self):
+    #     self.kernel.scheduler.notify_interruption()
 
 
 class KillInterruptionHandler(AbstractInterruptionHandler):
 
     def execute(self, irq):
+        # self.notify_interruption()
         log.logger.info(" Program Finished ")
         pcb = self.kernel.scheduler.current
         self.kernel.change_state(pcb, "Terminated")
         self.kernel.terminate()
         self.kernel.dispatcher.save(pcb)
+        # TODO: implement terminate_current()
         self.context_switch()
 
 
 class IoInInterruptionHandler(AbstractInterruptionHandler):
 
     def execute(self, irq):
+        # self.notify_interruption()
         operation = irq.parameters
         pcb = self.kernel.scheduler.current
         self.kernel.dispatcher.save(pcb)
         self.kernel.io_device_controller.run_operation(pcb, operation)
         self.kernel.terminate()
         log.logger.info(self.kernel.io_device_controller)
+        # TODO: implement terminate_current()
         self.context_switch()
 
 
@@ -162,6 +169,13 @@ class NewInterruptionHandler(AbstractInterruptionHandler):
         self.get_ready(pcb)
 
 
+class TimeOutInterruptionHandler(AbstractInterruptionHandler):
+
+    def execute(self, irq):
+        pass
+        # TODO: implement handler
+
+
 # emulates the core of an Operative System
 class Kernel:
 
@@ -179,18 +193,19 @@ class Kernel:
         new_handler = NewInterruptionHandler(self)
         HARDWARE.interruptVector.register(NEW_INTERRUPTION_TYPE, new_handler)
 
+        time_out_handler = TimeOutInterruptionHandler(self)
+        HARDWARE.interruptVector.register(TIME_OUT_INTERRUPTION_TYPE, time_out_handler)
+
         # controls the Hardware's I/O Device
         self._io_device_controller = IoDeviceController(self, HARDWARE.ioDevice)
 
         self._loader = Loader()
-        self._dispatcher = Dispatcher()
+        self._dispatcher = Dispatcher(self)
         self._table = PCBTable(30)
         # self._scheduler = FirstComeFirstServed(self)
         self._scheduler = RoundRobin(self, 2)
         # self._scheduler = Priority(self)
         # self._scheduler = ShortestJobFirst(self)
-
-        HARDWARE.clock.addSubscriber(self)
 
     @property
     def loader(self):
@@ -257,20 +272,10 @@ class Kernel:
         self.table.add_pcb(pcb)
         return pcb
 
-    def context_switch(self):
-        if self.has_next():
-            pcb = self.next()
-            self.set_current(pcb)
-            self.dispatcher.load(pcb)
-            self.change_state(pcb, "Running")
-
     def change_state(self, pcb, new_state):
         pcb.state = new_state
         if new_state == "Running":
             self.table.current = pcb
-
-    def tick(self, tick_nbr):
-        self.scheduler.tick()
 
     def __repr__(self):
         return "Kernel "
@@ -315,9 +320,6 @@ class FirstComeFirstServed(SchedulingAlgorithm):
     def has_next(self):
         return len(self._queue) > 0
 
-    def tick(self):
-        pass
-
     def print_ready(self):
         for pcb in self._queue:
             print(pcb)
@@ -332,6 +334,8 @@ class RoundRobin(SchedulingAlgorithm):
         self._queue = []
         self._quantum = value
         self.counter = value
+        HARDWARE.timer.set_on(value)
+        # self._outer_interruption = False
 
     def add(self, pcb):
         self._queue.append(pcb)
@@ -343,17 +347,21 @@ class RoundRobin(SchedulingAlgorithm):
     def has_next(self):
         return len(self._queue) > 0
 
-    def tick(self):
-        self.counter -= 1
-        if self.counter == 0 & self.has_next():
-            log.logger.info("Process time finished")
-            old_pcb = self.current
-            self.kernel.dispatcher.save(old_pcb)
-            self.add(old_pcb)
-            self.kernel.context_switch()
-            # TODO: when there is a context switch from an interruption, counter should restart
-            # TODO: problem case when the current process reaches an exit or an i/o in
-            self.counter = self._quantum
+    # TODO: not every tick should rest the counter
+    # TODO: problem when the current reaches exit or i/o in at the same time that the counter reaches zero
+    # def tick(self):
+    #     if not self._outer_interruption:
+    #         self.counter -= 1
+    #         # self._outer_interruption = False
+    #     if self.counter == 0 & self.has_next():
+    #         # TODO: this has to be done by the time_out handler
+    #         old_pcb = self.current
+    #         self.kernel.dispatcher.save(old_pcb)
+    #         self.add(old_pcb)
+    #         self.kernel.context_switch()
+
+    # def notify_interruption(self):
+    #     self._outer_interruption = True
 
     def print_ready(self):
         for pcb in self._queue:
@@ -379,10 +387,6 @@ class Priority(SchedulingAlgorithm):
 
     def has_next(self):
         return len(self._queue) > 0
-
-    def tick(self):
-        pass
-        # TODO: implement tick method
 
     def print_ready(self):
         for pcb in self._queue:
@@ -416,10 +420,6 @@ class ShortestJobFirst(SchedulingAlgorithm):
 
     def has_next(self):
         return len(self._queue) > 0
-
-    def tick(self):
-        pass
-        # TODO: implement tick method
 
     def print_ready(self):
         for pcb in self._queue:
@@ -547,6 +547,9 @@ class Loader:
 
 class Dispatcher:
 
+    def __init__(self, kernel):
+        self._kernel = kernel
+
     @staticmethod
     def save(pcb):
         pcb.set_pc(HARDWARE.cpu.pc)
@@ -567,3 +570,11 @@ class Dispatcher:
     def idle():
         # set CPU program counter at -1
         HARDWARE.cpu.pc = -1
+
+    def context_switch(self):
+        # TODO: check if the context switch keeps working
+        if self._kernel.has_next():
+            pcb = self._kernel.next()
+            self._kernel.set_current(pcb)
+            self.load(pcb)
+            self._kernel.change_state(pcb, "Running")

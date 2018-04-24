@@ -40,6 +40,7 @@ KILL_INTERRUPTION_TYPE = "#KILL"
 IO_IN_INTERRUPTION_TYPE = "#IO_IN"
 IO_OUT_INTERRUPTION_TYPE = "#IO_OUT"
 NEW_INTERRUPTION_TYPE = "#NEW"
+TIME_OUT_INTERRUPTION_TYPE = "#TIME_OUT"
 
 ## emulates an Interrupt request
 class IRQ:
@@ -110,6 +111,30 @@ class Clock():
             self.tick(tickNbr)
 
 
+class Timer:
+
+    def __init__(self, interruptVector):
+        self._interruptVector = interruptVector
+        self._quantum = None
+        self._counter = None
+        self._is_on = False
+
+    def tick(self, tickNbr):
+        if self._is_on:
+            self._counter -= 1
+            log.logger.info("Counter value: " + str(self._counter))
+        if self._is_on & self._counter == 0:
+            log.logger.info("Process time finished")
+            timeoutIRQ = IRQ(TIME_OUT_INTERRUPTION_TYPE)
+            self._interruptVector.handle(timeoutIRQ)
+
+    def set_on(self, value):
+        self._quantum = value
+        self._is_on = True
+        self._counter = value
+
+    def reset(self):
+        self._counter = self._quantum -1
 
 ## emulates the Hard Disk Drive (HDD)
 class HDD():
@@ -287,9 +312,11 @@ class Hardware():
         self._memory = Memory(memorySize)
         self._interruptVector = InterruptVector()
         self._clock = Clock()
+        self._timer = Timer(self._interruptVector)
         self._ioDevice = PrinterIODevice()
         self._mmu = MMU(self._memory)
         self._cpu = Cpu(self._mmu, self._interruptVector)
+        self._clock.addSubscriber(self._timer)
         self._clock.addSubscriber(self._ioDevice)
         self._clock.addSubscriber(self._cpu)
 
@@ -308,6 +335,10 @@ class Hardware():
     @property
     def clock(self):
         return self._clock
+
+    @property
+    def timer(self):
+        return self._timer
 
     @property
     def interruptVector(self):
