@@ -12,6 +12,7 @@ if __name__ == '__main__':
     prg2 = Program("prg2.exe", [ASM.CPU(2), ASM.IO(), ASM.CPU(2)])
     prg3 = Program("prg3.exe", [ASM.CPU(2), ASM.IO(), ASM.CPU(3)])
     prg4 = Program("prg4.exe", [ASM.CPU(2)])
+    prg5 = Program("prg5.exe", [ASM.CPU(7)])
 
     # setup our hardware and set memory size to 25 "cells"
     HARDWARE.setup(25)
@@ -20,6 +21,7 @@ if __name__ == '__main__':
     HARDWARE.addProgram(prg2)
     HARDWARE.addProgram(prg3)
     HARDWARE.addProgram(prg4)
+    HARDWARE.addProgram(prg5)
 
     # new create the Operative System Kernel
     kernel = Kernel()
@@ -47,6 +49,9 @@ if __name__ == '__main__':
 
     def print_current():
         print(kernel.get_current())
+
+    def print_cpu():
+        print(HARDWARE.cpu)
 
     def print_memory():
         print(HARDWARE.memory)
@@ -84,6 +89,7 @@ if __name__ == '__main__':
         "ticks": do_ticks,
         "timer": print_timer,
         "current": print_current,
+        "cpu": print_cpu,
         "memory": print_memory,
         "mmu": print_mmu,
         "ready": print_ready,

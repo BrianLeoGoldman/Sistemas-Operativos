@@ -198,8 +198,8 @@ class Kernel:
         self._loader = Loader()
         self._dispatcher = Dispatcher(self)
         self._table = PCBTable(30)
-        self._scheduler = FirstComeFirstServed(self)
-        # self._scheduler = RoundRobin(self, 4)
+        # self._scheduler = FirstComeFirstServed(self)
+        self._scheduler = RoundRobin(self, 4)
         # self._scheduler = Priority(self)
         # self._scheduler = ShortestJobFirst(self)
 
