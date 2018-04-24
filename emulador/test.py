@@ -40,11 +40,19 @@ if __name__ == '__main__':
         times = input()
         HARDWARE.clock.do_ticks(int(times))
 
+    def print_timer():
+        print("Timer is on: " + str(HARDWARE.timer.is_on) +
+              " / Quantum: " + str(HARDWARE.timer.quantum) +
+              " / Counter: " + str(HARDWARE.timer.counter))
+
     def print_current():
         print(kernel.get_current())
 
     def print_memory():
         print(HARDWARE.memory)
+
+    def print_mmu():
+        print(HARDWARE.mmu)
 
     def print_ready():
         kernel.scheduler.print_ready()
@@ -74,8 +82,10 @@ if __name__ == '__main__':
     processDictionary = {
         "tick": tick,
         "ticks": do_ticks,
+        "timer": print_timer,
         "current": print_current,
         "memory": print_memory,
+        "mmu": print_mmu,
         "ready": print_ready,
         "io": print_io,
         "table": print_pcb_table,

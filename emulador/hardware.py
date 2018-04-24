@@ -119,22 +119,39 @@ class Timer:
         self._counter = None
         self._is_on = False
 
+    @property
+    def quantum(self):
+        return self._quantum
+
+    @property
+    def counter(self):
+        return self._counter
+
+    @property
+    def is_on(self):
+        return self._is_on
+
     def tick(self, tickNbr):
         if self._is_on:
             self._counter -= 1
             log.logger.info("Counter value: " + str(self._counter))
-        if self._is_on & self._counter == 0:
-            log.logger.info("Process time finished")
-            timeoutIRQ = IRQ(TIME_OUT_INTERRUPTION_TYPE)
-            self._interruptVector.handle(timeoutIRQ)
+            if self._counter == 0:
+                log.logger.info("Process time finished")
+                timeoutIRQ = IRQ(TIME_OUT_INTERRUPTION_TYPE)
+                self._interruptVector.handle(timeoutIRQ)
 
     def set_on(self, value):
-        self._quantum = value
         self._is_on = True
+        self._quantum = value
         self._counter = value
+        log.logger.info("Timer is set on with quantum " + str(self._quantum) + " and counter " + str(self._counter))
 
     def reset(self):
-        self._counter = self._quantum -1
+        log.logger.info("Timer reset")
+        if self._is_on:
+            self._counter = self._quantum - 1
+            # TODO: this -1 is a problem
+
 
 ## emulates the Hard Disk Drive (HDD)
 class HDD():
@@ -176,7 +193,7 @@ class MMU():
 
     def __init__(self, memory):
         self._memory = memory
-        self._baseDir = 0
+        self._base_dir = 0
         self._limit = 999
 
     @property
@@ -188,19 +205,22 @@ class MMU():
         self._limit = limit
 
     @property
-    def baseDir(self):
-        return self._limit
+    def base_dir(self):
+        return self._base_dir
 
-    @baseDir.setter
-    def baseDir(self, baseDir):
-        self._baseDir = baseDir
+    @base_dir.setter
+    def base_dir(self, baseDir):
+        self._base_dir = baseDir
 
     def fetch(self,  logicalAddress):
         if (logicalAddress >= self._limit):
             raise Exception("Invalid Address,  {logicalAddress} is eq or higher than process limit: {limit}".format(limit = self._limit, logicalAddress = logicalAddress))
         else:
-            physicalAddress = logicalAddress + self._baseDir
+            physicalAddress = logicalAddress + self._base_dir
             return self._memory.get(physicalAddress)
+
+    def __repr__(self):
+        return "MMU (Base Dir = {base} / Max Dir = {max})".format(base=self._base_dir, max=self._limit)
 
 
 ## emulates the main Central Processor Unit

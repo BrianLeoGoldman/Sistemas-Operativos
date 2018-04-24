@@ -119,34 +119,27 @@ class AbstractInterruptionHandler:
     def context_switch(self):
         self.kernel.dispatcher.context_switch()
 
-    # def notify_interruption(self):
-    #     self.kernel.scheduler.notify_interruption()
-
 
 class KillInterruptionHandler(AbstractInterruptionHandler):
 
     def execute(self, irq):
-        # self.notify_interruption()
         log.logger.info(" Program Finished ")
         pcb = self.kernel.scheduler.current
         self.kernel.change_state(pcb, "Terminated")
         self.kernel.terminate()
         self.kernel.dispatcher.save(pcb)
-        # TODO: implement terminate_current()
         self.context_switch()
 
 
 class IoInInterruptionHandler(AbstractInterruptionHandler):
 
     def execute(self, irq):
-        # self.notify_interruption()
         operation = irq.parameters
         pcb = self.kernel.scheduler.current
         self.kernel.dispatcher.save(pcb)
         self.kernel.io_device_controller.run_operation(pcb, operation)
         self.kernel.terminate()
         log.logger.info(self.kernel.io_device_controller)
-        # TODO: implement terminate_current()
         self.context_switch()
 
 
@@ -172,8 +165,12 @@ class NewInterruptionHandler(AbstractInterruptionHandler):
 class TimeOutInterruptionHandler(AbstractInterruptionHandler):
 
     def execute(self, irq):
-        pass
-        # TODO: implement handler
+        if self.kernel.has_running():
+            old_pcb = self.kernel.scheduler.current
+            self.kernel.dispatcher.save(old_pcb)
+            self.kernel.scheduler.add(old_pcb)
+            self.kernel.dispatcher.context_switch()
+        # TODO: check handler
 
 
 # emulates the core of an Operative System
@@ -202,8 +199,8 @@ class Kernel:
         self._loader = Loader()
         self._dispatcher = Dispatcher(self)
         self._table = PCBTable(30)
-        # self._scheduler = FirstComeFirstServed(self)
-        self._scheduler = RoundRobin(self, 2)
+        self._scheduler = FirstComeFirstServed(self)
+        # self._scheduler = RoundRobin(self, 4)
         # self._scheduler = Priority(self)
         # self._scheduler = ShortestJobFirst(self)
 
@@ -332,10 +329,7 @@ class RoundRobin(SchedulingAlgorithm):
     def __init__(self, kernel, value):
         super().__init__(kernel)
         self._queue = []
-        self._quantum = value
-        self.counter = value
         HARDWARE.timer.set_on(value)
-        # self._outer_interruption = False
 
     def add(self, pcb):
         self._queue.append(pcb)
@@ -346,22 +340,6 @@ class RoundRobin(SchedulingAlgorithm):
 
     def has_next(self):
         return len(self._queue) > 0
-
-    # TODO: not every tick should rest the counter
-    # TODO: problem when the current reaches exit or i/o in at the same time that the counter reaches zero
-    # def tick(self):
-    #     if not self._outer_interruption:
-    #         self.counter -= 1
-    #         # self._outer_interruption = False
-    #     if self.counter == 0 & self.has_next():
-    #         # TODO: this has to be done by the time_out handler
-    #         old_pcb = self.current
-    #         self.kernel.dispatcher.save(old_pcb)
-    #         self.add(old_pcb)
-    #         self.kernel.context_switch()
-
-    # def notify_interruption(self):
-    #     self._outer_interruption = True
 
     def print_ready(self):
         for pcb in self._queue:
@@ -380,7 +358,6 @@ class Priority(SchedulingAlgorithm):
 
     def add(self, pcb):
         pass
-        # TODO: implement add method
 
     def next(self):
         return self._queue.pop(0)
@@ -404,7 +381,6 @@ class ShortestJobFirst(SchedulingAlgorithm):
 
     def add(self, pcb):
         pass
-        # TODO: implement add method
         # time = pcb.remaining
         # if time < self._current.remaining:
         #     oldCurrent = self.current
@@ -555,11 +531,12 @@ class Dispatcher:
         pcb.set_pc(HARDWARE.cpu.pc)
         HARDWARE.cpu.pc = -1
 
-    @staticmethod
-    def load(pcb):
+    def load(self, pcb):
         HARDWARE.mmu.base_dir = pcb.base_dir
         HARDWARE.mmu.limit = pcb.max_dir
         HARDWARE.cpu.pc = pcb.pc
+        if self._kernel.has_running():
+            HARDWARE.timer.reset()
 
     @staticmethod
     def start():
@@ -572,7 +549,6 @@ class Dispatcher:
         HARDWARE.cpu.pc = -1
 
     def context_switch(self):
-        # TODO: check if the context switch keeps working
         if self._kernel.has_next():
             pcb = self._kernel.next()
             self._kernel.set_current(pcb)
