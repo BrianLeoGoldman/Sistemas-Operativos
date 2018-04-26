@@ -44,7 +44,7 @@ class Program:
         return expanded
 
     def __repr__(self):
-        return "Program({name}, {instructions})"\
+        return "Program({name}, {instructions})" \
             .format(name=self._name, instructions=self._instructions)
 
 
@@ -88,7 +88,7 @@ class IoDeviceController:
         return (len(self._waiting_queue) == 0) & (self._current_pcb is None)
 
     def __repr__(self):
-        return "IoDeviceController for {deviceID} running: {currentPCB} waiting: {waiting_queue}"\
+        return "IoDeviceController for {deviceID} running: {currentPCB} waiting: {waiting_queue}" \
             .format(deviceID=self._device.deviceId, currentPCB=self._current_pcb, waiting_queue=self._waiting_queue)
 
 
@@ -162,7 +162,6 @@ class NewInterruptionHandler(AbstractInterruptionHandler):
 
 
 class TimeOutInterruptionHandler(AbstractInterruptionHandler):
-    # TODO: check handler
 
     def execute(self, irq):
         if self.kernel.has_running():
@@ -359,8 +358,7 @@ class Priority(SchedulingAlgorithm):
 
     def add(self, pcb):
         priority = pcb.priority
-        print(pcb)
-        log.logger.info("La prioridad es" + str(priority))
+        log.logger.info("La prioridad es " + str(priority))
         log.logger.info("La cantidad de colas es " + str(len(self._priorities)))
         self._priorities[priority].append(pcb)
         self._has_pcbs[priority] = True
@@ -391,26 +389,15 @@ class ShortestJobFirst(SchedulingAlgorithm):
 
     def add(self, pcb):
         pass
-        # TODO: implement add
-        # time = pcb.remaining
-        # if time < self._current.remaining:
-        #     oldCurrent = self.current
-        #     self.setCurrent(None)
-        #     self.kernel.switchPCBs(oldCurrent, pcb)
-        # else:
-        #     self._queue.append(pcb)
-        #     self.kernel.changeState(pcb, "Ready")
-        #     sorted(self._queue, key=lambda time: pcb.remaining)  # sort by time CPU burst
 
     def next(self):
-        return self._queue.pop(0)
+        pass
 
     def has_next(self):
-        return len(self._queue) > 0
+        pass
 
     def print_ready(self):
-        for pcb in self._queue:
-            print(pcb)
+        pass
 
 
 class PCBTable:
@@ -465,7 +452,6 @@ class PCB:
         self._max_dir = max_dir
         self._pc = 0
         self._priority = random.randint(0, 4)
-        # TODO: review priority
 
     @property
     def pid(self):

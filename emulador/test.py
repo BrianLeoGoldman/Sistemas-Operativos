@@ -38,32 +38,41 @@ if __name__ == '__main__':
         HARDWARE.clock.tick(tickNbr)
         tickNbr += 1
 
+
     def do_ticks():
         times = input()
         HARDWARE.clock.do_ticks(int(times))
+
 
     def print_timer():
         print("Timer is on: " + str(HARDWARE.timer.is_on) +
               " / Quantum: " + str(HARDWARE.timer.quantum) +
               " / Counter: " + str(HARDWARE.timer.counter))
 
+
     def print_current():
         print(kernel.get_current())
+
 
     def print_cpu():
         print(HARDWARE.cpu)
 
+
     def print_memory():
         print(HARDWARE.memory)
+
 
     def print_mmu():
         print(HARDWARE.mmu)
 
+
     def print_ready():
         kernel.scheduler.print_ready()
 
+
     def print_io():
         print(kernel.io_device_controller)
+
 
     def print_pcb_table():
         pcb_list = kernel.table.elements
@@ -71,13 +80,16 @@ if __name__ == '__main__':
         for pcb in pcb_list:
             print(pcb)
 
+
     def execute_program():
         name = input()
         kernel.execute(name)
 
+
     def finish_test():
         global running
         running = False
+
 
     def process_input(name):
         processDictionary[name]()
