@@ -352,23 +352,33 @@ class Priority(SchedulingAlgorithm):
         super().__init__(kernel)
         self._is_preemptive = boolean
         self._priorities = [[], [], [], [], []]
-        # for i in self._priorities:
-        #     self._priorities[i] = []
         self._has_pcbs = [False, False, False, False, False]
 
     def add(self, pcb):
         priority = pcb.priority
-        log.logger.info("La prioridad es " + str(priority))
-        log.logger.info("La cantidad de colas es " + str(len(self._priorities)))
         self._priorities[priority].append(pcb)
         self._has_pcbs[priority] = True
 
     def next(self):
-        # TODO: aging is implemented here
-        i = self._has_pcbs.index(True)
-        if len(self._priorities[i]) == 1:
-            self._has_pcbs[i] = False
-        return self._priorities[i].pop(0)
+        level = self._has_pcbs.index(True)
+        next_pcb = self._priorities[level].pop(0)
+        self.check_level(level)
+        self.aging()
+        return next_pcb
+
+    def aging(self):
+        for i in range(1, 5):
+            if self._has_pcbs[i]:
+                going_up = self._priorities[i].pop(0)
+                self._priorities[i-1].append(going_up)
+                self.check_level(i)
+                self.check_level(i-1)
+
+    def check_level(self, level):
+        if len(self._priorities[level]) == 0:
+            self._has_pcbs[level] = False
+        else:
+            self._has_pcbs[level] = True
 
     def has_next(self):
         return any(b == True for b in self._has_pcbs)
