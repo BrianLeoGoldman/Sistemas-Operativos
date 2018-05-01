@@ -107,8 +107,11 @@ class AbstractInterruptionHandler:
 
     def get_ready(self, pcb):
         if self.kernel.has_running():
-            self.kernel.add(pcb)
-            self.kernel.change_state(pcb, "Ready")
+            if self.kernel.scheduler.check_preemptive():
+                self.check_priorities(pcb)
+            else:
+                self.kernel.add(pcb)
+                self.kernel.change_state(pcb, "Ready")
         else:
             self.kernel.set_current(pcb)
             self.kernel.dispatcher.load(pcb)
@@ -116,6 +119,20 @@ class AbstractInterruptionHandler:
 
     def context_switch(self):
         self.kernel.dispatcher.context_switch()
+
+    def check_priorities(self, pcb):
+        current = self.kernel.get_current()
+        if pcb.priority < current.priority:
+            log.logger.info(" Switching processes based on priority ")
+            self.kernel.dispatcher.save(current)
+            self.kernel.add(current)
+            self.kernel.change_state(current, "Ready")
+            self.kernel.set_current(pcb)
+            self.kernel.dispatcher.load(pcb)
+            self.kernel.change_state(pcb, "Running")
+        else:
+            self.kernel.add(pcb)
+            self.kernel.change_state(pcb, "Ready")
 
 
 class KillInterruptionHandler(AbstractInterruptionHandler):
@@ -199,7 +216,7 @@ class Kernel:
         self._table = PCBTable(30)
         # self._scheduler = FirstComeFirstServed(self)
         # self._scheduler = RoundRobin(self, 4)
-        self._scheduler = Priority(self, False)
+        self._scheduler = Priority(self, True)
         # self._scheduler = ShortestJobFirst(self)
 
     @property
@@ -294,6 +311,9 @@ class SchedulingAlgorithm:
     def set_current(self, pcb):
         self._current = pcb
 
+    def check_preemptive(self):
+        return False
+
 
 class FirstComeFirstServed(SchedulingAlgorithm):
     # Processes are assigned the CPU in the order they request it
@@ -382,6 +402,9 @@ class Priority(SchedulingAlgorithm):
 
     def has_next(self):
         return any(b == True for b in self._has_pcbs)
+
+    def check_preemptive(self):
+        return self._is_preemptive
 
     def print_ready(self):
         for i in range(0, 5):

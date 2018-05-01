@@ -133,7 +133,6 @@ class Timer:
 
     def tick(self, tickNbr):
         if self._is_on:
-            # TODO: it should ask if there is a running process, if not, there is no point in resting the counter
             self._counter -= 1
             log.logger.info("Counter value: " + str(self._counter))
             if self._counter == 0:
@@ -149,9 +148,8 @@ class Timer:
 
     def reset(self):
         if self._is_on:
-            log.logger.info("Timer reset")
             self._counter = self._quantum - 1
-            # TODO: this -1 is a problem?
+            log.logger.info("Timer reset")
 
 
 ## emulates the Hard Disk Drive (HDD)
