@@ -1,8 +1,5 @@
 from so import *
 import log
-from tkinter import *
-from tkinter import ttk
-from tkinter import messagebox
 
 #
 #  MAIN
@@ -89,16 +86,6 @@ if __name__ == '__main__':
         kernel.execute(name)
 
 
-    # Test function
-    def execute_program_1():
-        kernel.execute("prg1.exe")
-
-
-    # Test function
-    def execute_program_2():
-        kernel.execute("prg2.exe")
-
-
     def finish_test():
         global running
         running = False
@@ -124,52 +111,7 @@ if __name__ == '__main__':
         "exit": finish_test
     }
 
-    # while running:
-    #     text = input()
-    #     process_input(text)
+    while running:
+        text = input()
+        process_input(text)
 
-    root = Tk()
-    root.geometry("300x300")
-    root.title("OS Emulator")
-
-    table_button = Button(root, text="PCB Table", command=print_pcb_table, width=10, height=1)
-    # table_button.pack(side=RIGHT)
-    table_button.place(x=20, y=10)
-
-    ready_button = Button(root, text="Ready Queue", command=print_ready, width=10, height=1)
-    ready_button.place(x=110, y=10)
-
-    io_button = Button(root, text="I/O device", command=print_io, width=10, height=1)
-    io_button.place(x=210, y=10)
-
-    memory_button = Button(root, text="Memory", command=print_memory, width=10, height=1)
-    memory_button.place(x=20, y=50)
-
-    timer_button = Button(root, text="Timer", command=print_timer, width=10, height=1)
-    timer_button.place(x=110, y=50)
-
-    tick_button = Button(root, text="TICK", command=tick, width=10, height=1)
-    tick_button.place(x=210, y=50)
-
-    mb = Menubutton(root, text="Programs", relief=RAISED)
-    mb.grid()
-    mb.menu = Menu(mb, tearoff=0)
-    mb["menu"] = mb.menu
-    prg1 = IntVar()
-    prg2 = IntVar()
-    mb.menu.add_checkbutton(label="Program 1", variable=prg1, command=execute_program_1)
-    mb.menu.add_checkbutton(label="Program 2", variable=prg2, command=execute_program_2)
-    mb.place(x=20, y=90)
-
-    # def test():
-    #     res = E1.get()
-    #     process_input(res)
-    #     msg = messagebox.showinfo("Hello Python", res)
-    #
-    # L1 = Label(root, text="User Name")
-    # L1.pack(side=LEFT)
-    #
-    # E1 = Entry(root, bd=5)
-    # E1.pack(side=RIGHT)
-
-    root.mainloop()
