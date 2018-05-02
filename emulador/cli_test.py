@@ -25,13 +25,12 @@ if __name__ == '__main__':
 
     # new create the Operative System Kernel
     kernel = Kernel()
-
     # variable used to count the tick number
     tickNbr = 0
-
     # variable used to run the test
     running = True
 
+    # Test command line interface
 
     def tick():
         global tickNbr
@@ -114,4 +113,3 @@ if __name__ == '__main__':
     while running:
         text = input()
         process_input(text)
-

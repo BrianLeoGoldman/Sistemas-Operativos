@@ -1,8 +1,6 @@
 from so import *
 import log
 from tkinter import *
-from tkinter import ttk
-from tkinter import messagebox
 
 #
 #  MAIN
@@ -32,171 +30,138 @@ if __name__ == '__main__':
     # variable used to count the tick number
     tickNbr = 0
 
-    # variable used to run the test
-    running = True
+
+    def print_memory():
+        memory_text.delete('1.0', END)
+        memory_text.insert(INSERT, HARDWARE.memory)
+
+
+    def print_pcb_table():
+        pcb_list = kernel.table.elements
+        table_text.delete('1.0', END)
+        for pcb in pcb_list:
+            table_text.insert(INSERT, "PID: " + str(pcb.pid) + " / " + "State: " + pcb.state + "\n")
+
+
+    def print_ready():
+        # Only works if scheduler is not priority scheduler
+        queue = kernel.scheduler.queue
+        ready_text.delete('1.0', END)
+        for pcb in queue:
+            ready_text.insert(INSERT, "PID: " + str(pcb.pid) + " / " + "Priority: " + str(pcb.priority) + "\n")
+
+
+    def print_timer():
+        var = HARDWARE.timer.is_on
+        if var:
+            status = "Status: on"
+        else:
+            status = "Status: off"
+        timer_text.delete('1.0', END)
+        timer_text.insert(INSERT, status + '\n' +
+                          "Quantum: " + str(HARDWARE.timer.quantum) + '\n' +
+                          "Counter: " + str(HARDWARE.timer.counter))
+
+
+    def print_io():
+        printing = kernel.io_device_controller.current_pcb
+        if not printing is None:
+            printing = "(PID->" + str(printing.pid) + ")"
+        waiting = kernel.io_device_controller.waiting_queue
+        var = ""
+        if not waiting is None:
+            for dictionary in waiting:
+                var = var + str(dictionary['pcb'].pid)
+        io_text.delete('1.0', END)
+        io_text.insert(INSERT, "Printing: " + str(printing) + '\n' +
+                       "Waiting: " + str(var))
 
 
     def tick():
         global tickNbr
         HARDWARE.clock.tick(tickNbr)
         tickNbr += 1
+        print_system()
 
 
-    def do_ticks():
-        times = input()
-        HARDWARE.clock.do_ticks(int(times))
-
-
-    def print_timer():
-        print("Timer is on: " + str(HARDWARE.timer.is_on) +
-              " / Quantum: " + str(HARDWARE.timer.quantum) +
-              " / Counter: " + str(HARDWARE.timer.counter))
-
-
-    def print_current():
-        print(kernel.get_current())
-
-
-    def print_cpu():
-        print(HARDWARE.cpu)
-
-
-    def print_memory():
-        print(HARDWARE.memory)
-
-
-    def print_mmu():
-        print(HARDWARE.mmu)
-
-
-    def print_ready():
-        kernel.scheduler.print_ready()
-
-
-    def print_io():
-        print(kernel.io_device_controller)
-
-
-    def print_pcb_table():
-        pcb_list = kernel.table.elements
-        print("Current process: " + str(kernel.table.current))
-        for pcb in pcb_list:
-            print(pcb)
-
-
-    def execute_program():
-        name = input()
-        kernel.execute(name)
-
-
-    # Test function
     def execute_program_1():
         kernel.execute("prg1.exe")
 
 
-    # Test function
     def execute_program_2():
         kernel.execute("prg2.exe")
 
 
-    def finish_test():
-        global running
-        running = False
+    def execute_program_3():
+        kernel.execute("prg3.exe")
 
 
-    def print_memory():
-        print(HARDWARE.memory)
-        # Test
-        print_memory2(HARDWARE.memory)
+    def execute_program_4():
+        kernel.execute("prg4.exe")
 
+
+    def execute_program_5():
+        kernel.execute("prg5.exe")
+
+
+    def print_system():
+        print_memory()
+        print_pcb_table()
+        print_ready()
+        print_timer()
+        print_io()
+
+
+    # Test graphical user interface
 
     root = Tk()
-    root.geometry("300x300")
+    root.geometry("600x500")
     root.title("OS Emulator")
 
-    table_button = Button(root, text="PCB Table", command=print_pcb_table, width=10, height=1, bg="green")
-    # table_button.pack(side=RIGHT)
-    table_button.place(x=20, y=10)
+    memory_label = Label(root, text="Memory", width=10, height=1)
+    memory_label.grid(row=0, column=0, padx=5, pady=5)
 
-    ready_button = Button(root, text="Ready Queue", command=print_ready, width=10, height=1, bg="red")
-    ready_button.place(x=110, y=10)
+    table_label = Label(root, text="PCB Table", width=10, height=1)
+    table_label.grid(row=0, column=3, padx=5, pady=5)
 
-    io_button = Button(root, text="I/O device", command=print_io, width=10, height=1, bg="cyan")
-    io_button.place(x=210, y=10)
+    ready_label = Label(root, text="Ready Queue", width=10, height=1)
+    ready_label.grid(row=0, column=6, padx=5, pady=5)
 
-    memory_button = Button(root, text="Memory", command=print_memory, width=10, height=1, bg="blue")
-    memory_button.place(x=20, y=50)
+    timer_label = Label(root, text="Timer", width=10, height=1)
+    timer_label.grid(row=3, column=1, padx=5, pady=5)
 
-    timer_button = Button(root, text="Timer", command=print_timer, width=10, height=1, bg="yellow")
-    timer_button.place(x=110, y=50)
+    io_label = Label(root, text="I/O device", width=10, height=1)
+    io_label.grid(row=3, column=6, padx=5, pady=5)
 
-    tick_button = Button(root, text="TICK", command=tick, width=10, height=1, bg="magenta", cursor="cross")
-    tick_button.place(x=210, y=50)
-
-    ##################################
-
-    # txt_frm = Frame(root, width=100, height=100)
-    # txt_frm.pack(fill="both", expand=True)
-    # # ensure a consistent GUI size
-    # txt_frm.grid_propagate(False)
-    # # implement stretchability
-    # txt_frm.grid_rowconfigure(0, weight=1)
-    # txt_frm.grid_columnconfigure(0, weight=1)
-    #
-    # # create a Text widget
-    # txt = Text(txt_frm, borderwidth=3, relief="sunken")
-    # txt.config(font=("consolas", 12), undo=True, wrap='word')
-    # txt.grid(row=0, column=0, sticky="nsew", padx=2, pady=2)
-    #
-    # # create a Scrollbar and associate it with txt
-    # scrollb = Scrollbar(txt_frm, command=txt.yview)
-    # scrollb.grid(row=0, column=1, sticky='nsew')
-    # txt['yscrollcommand'] = scrollb.set
-
-    #####################################
-
-    scrollbar = Scrollbar(root)
-    scrollbar.pack(side=RIGHT, fill=Y)
-
-    text = Text(root, width=32, height=10)
-    # text.insert(INSERT, "Waiting.....")
-    # text.insert(END, "Bye Bye.....")
-    text.yview()
-    text.place(x=20, y=120)
-
-    # text.tag_add("here", "1.0", "1.4")
-    # text.tag_add("start", "1.8", "1.13")
-    # text.tag_config("here", background="yellow", foreground="blue")
-    # text.tag_config("start", background="black", foreground="green")
-
-    def print_memory2(text_string):
-        text.insert(INSERT, text_string)
-
-
-    scrollbar.config(command=text.yview)
-    text['yscrollcommand'] = scrollbar.set
-
-    ###################################################
-
-    mb = Menubutton(root, text="Programs", relief=RAISED)
-    # mb.grid()
+    mb = Menubutton(root, text="Programs", width=10, height=1, bg="cyan", relief=RAISED)
     mb.menu = Menu(mb, tearoff=0)
     mb["menu"] = mb.menu
-    prg1 = IntVar()
-    prg2 = IntVar()
-    mb.menu.add_checkbutton(label="Program 1", variable=prg1, command=execute_program_1)
-    mb.menu.add_checkbutton(label="Program 2", variable=prg2, command=execute_program_2)
-    mb.place(x=20, y=90)
+    mb.menu.add_checkbutton(label="Program 1", command=execute_program_1)
+    mb.menu.add_checkbutton(label="Program 2", command=execute_program_2)
+    mb.menu.add_checkbutton(label="Program 3", command=execute_program_3)
+    mb.menu.add_checkbutton(label="Program 4", command=execute_program_4)
+    mb.menu.add_checkbutton(label="Program 5", command=execute_program_5)
+    mb.grid(row=8, column=1)
 
-    # def test():
-    #     res = E1.get()
-    #     process_input(res)
-    #     msg = messagebox.showinfo("Hello Python", res)
-    #
-    # L1 = Label(root, text="User Name")
-    # L1.pack(side=LEFT)
-    #
-    # E1 = Entry(root, bd=5)
-    # E1.pack(side=RIGHT)
+    tick_button = Button(root, text="TICK", command=tick, width=10, height=1, bg="red")
+    tick_button.grid(row=8, column=3)
 
+    memory_text = Text(root, width=13, height=27)
+    memory_text.grid(row=1, column=0, rowspan=10, columnspan=1, padx=5)
+    memory_text.config(font=("consolas", 9), undo=True, wrap='word')
+    # memory_text.yview()
+
+    table_text = Text(root, width=27, height=10, wrap=WORD)
+    table_text.grid(row=1, column=1, columnspan=5, padx=5)
+
+    ready_text = Text(root, width=25, height=10, wrap=WORD)
+    ready_text.grid(row=1, column=6, columnspan=1, padx=5)
+
+    timer_text = Text(root, width=13, height=5, wrap=WORD)
+    timer_text.grid(row=4, column=1, columnspan=1, padx=5)
+
+    io_text = Text(root, width=26, height=5, wrap=WORD)
+    io_text.grid(row=4, column=6)
+
+    print_system()
     root.mainloop()

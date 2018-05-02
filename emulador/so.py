@@ -58,6 +58,14 @@ class IoDeviceController:
         self._kernel = kernel
 
     @property
+    def waiting_queue(self):
+        return self._waiting_queue
+
+    @property
+    def current_pcb(self):
+        return self._current_pcb
+
+    @property
     def kernel(self):
         return self._kernel
 
@@ -214,9 +222,9 @@ class Kernel:
         self._loader = Loader()
         self._dispatcher = Dispatcher(self)
         self._table = PCBTable(30)
-        # self._scheduler = FirstComeFirstServed(self)
+        self._scheduler = FirstComeFirstServed(self)
         # self._scheduler = RoundRobin(self, 4)
-        self._scheduler = Priority(self, True)
+        # self._scheduler = Priority(self, True)
         # self._scheduler = ShortestJobFirst(self)
 
     @property
@@ -323,6 +331,10 @@ class FirstComeFirstServed(SchedulingAlgorithm):
         super().__init__(kernel)
         self._queue = []
 
+    @property
+    def queue(self):
+        return self._queue
+
     def add(self, pcb):
         self._queue.append(pcb)
         self.kernel.change_state(pcb, "Ready")
@@ -346,6 +358,10 @@ class RoundRobin(SchedulingAlgorithm):
         super().__init__(kernel)
         self._queue = []
         HARDWARE.timer.set_on(value)
+
+    @property
+    def queue(self):
+        return self._queue
 
     def add(self, pcb):
         self._queue.append(pcb)
@@ -371,17 +387,21 @@ class Priority(SchedulingAlgorithm):
     def __init__(self, kernel, boolean):
         super().__init__(kernel)
         self._is_preemptive = boolean
-        self._priorities = [[], [], [], [], []]
+        self._queue = [[], [], [], [], []]
         self._has_pcbs = [False, False, False, False, False]
+
+    @property
+    def queue(self):
+        return self._queue
 
     def add(self, pcb):
         priority = pcb.priority
-        self._priorities[priority].append(pcb)
+        self._queue[priority].append(pcb)
         self._has_pcbs[priority] = True
 
     def next(self):
         level = self._has_pcbs.index(True)
-        next_pcb = self._priorities[level].pop(0)
+        next_pcb = self._queue[level].pop(0)
         self.check_level(level)
         self.aging()
         return next_pcb
@@ -389,13 +409,13 @@ class Priority(SchedulingAlgorithm):
     def aging(self):
         for i in range(1, 5):
             if self._has_pcbs[i]:
-                going_up = self._priorities[i].pop(0)
-                self._priorities[i-1].append(going_up)
+                going_up = self._queue[i].pop(0)
+                self._queue[i - 1].append(going_up)
                 self.check_level(i)
                 self.check_level(i-1)
 
     def check_level(self, level):
-        if len(self._priorities[level]) == 0:
+        if len(self._queue[level]) == 0:
             self._has_pcbs[level] = False
         else:
             self._has_pcbs[level] = True
@@ -408,7 +428,7 @@ class Priority(SchedulingAlgorithm):
 
     def print_ready(self):
         for i in range(0, 5):
-            print(self._priorities[i])
+            print(self._queue[i])
 
 
 class ShortestJobFirst(SchedulingAlgorithm):
