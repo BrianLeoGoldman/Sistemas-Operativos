@@ -1,3 +1,4 @@
+from gantt_chart import GanttChartCalculator
 from so import *
 import log
 
@@ -29,6 +30,9 @@ if __name__ == '__main__':
     tickNbr = 0
     # variable used to run the test
     running = True
+
+    gantt = GanttChartCalculator(kernel)
+    HARDWARE.clock.addSubscriber(gantt)
 
     # Test command line interface
 
@@ -89,6 +93,13 @@ if __name__ == '__main__':
         global running
         running = False
 
+    def load_gantt():
+        gantt.start()
+
+
+    def print_gantt():
+        log.logger.info(gantt)
+
 
     def process_input(name):
         processDictionary[name]()
@@ -107,7 +118,9 @@ if __name__ == '__main__':
         "io": print_io,
         "table": print_pcb_table,
         "execute": execute_program,
-        "exit": finish_test
+        "exit": finish_test,
+        "gantt_start": load_gantt,
+        "gantt_show": print_gantt
     }
 
     while running:
