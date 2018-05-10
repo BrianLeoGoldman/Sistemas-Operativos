@@ -44,7 +44,7 @@ if __name__ == '__main__':
 
 
     def print_ready():
-        # Only works if scheduler is not priority scheduler
+        # TODO: Only works if scheduler is not priority scheduler
         queue = kernel.scheduler.queue
         ready_text.delete('1.0', END)
         for pcb in queue:

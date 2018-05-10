@@ -605,20 +605,3 @@ class Dispatcher:
             self._kernel.set_current(pcb)
             self.load(pcb)
             self._kernel.change_state(pcb, "Running")
-
-
-class MemoryManager:
-
-    def __init__(self, frame_size, memory):
-        self._frame_size = frame_size
-        self._page_table = []
-        self._free_frames = []
-        self._free_memory = memory.size()
-
-    @property
-    def frame_size(self):
-        return self._frame_size
-
-    @property
-    def free_memory(self):
-        return self._free_memory
