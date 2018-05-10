@@ -170,12 +170,14 @@ class HDD():
         del self._memory[name]
 
 
-
 ## emulates the main memory (RAM)
 class Memory():
 
     def __init__(self, size):
         self._cells = [''] * size
+
+    def size(self):
+        return self._cells.__sizeof__()
 
     def put(self, addr, value):
         self._cells[addr] = value
