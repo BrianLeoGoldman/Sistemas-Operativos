@@ -197,9 +197,6 @@ class MMU():
     def __init__(self, memory):
         self._memory = memory
         self._page_table = None
-        self._base_dir = 0
-        self._limit = 999
-        # TODO: limit is okay
 
     @property
     def page_table(self):
@@ -208,22 +205,6 @@ class MMU():
     @page_table.setter
     def page_table(self, table):
         self._page_table = table
-
-    @property
-    def limit(self):
-        return self._limit
-
-    @limit.setter
-    def limit(self, limit):
-        self._limit = limit
-
-    @property
-    def base_dir(self):
-        return self._base_dir
-
-    @base_dir.setter
-    def base_dir(self, baseDir):
-        self._base_dir = baseDir
 
     # def fetch(self,  logicalAddress):
     #     if (logicalAddress >= self._limit):

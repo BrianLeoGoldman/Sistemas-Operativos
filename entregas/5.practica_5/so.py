@@ -180,10 +180,11 @@ class NewInterruptionHandler(AbstractInterruptionHandler):
 
     def execute(self, irq):
         program = irq.parameters
-        base_dir = self.kernel.loader.available_cell
+        # TODO: this base_dir is not necessary
+        # base_dir = self.kernel.loader.available_cell
         length = len(program.instructions)
         # TODO: I changed the order of creating the PCB and loading the program
-        pcb = self.kernel.create_pcb(program.name, base_dir, base_dir + length)
+        pcb = self.kernel.create_pcb(program.name)
         self.kernel.loader.load(program, pcb.pid)
         self.get_ready(pcb)
 
@@ -293,8 +294,8 @@ class Kernel:
         self.table.current = None
         self.dispatcher.idle()
 
-    def create_pcb(self, name, base_dir, max_dir):
-        pcb = PCB(name, base_dir, max_dir)
+    def create_pcb(self, name):
+        pcb = PCB(name)
         self.table.add_pcb(pcb)
         return pcb
 
@@ -505,13 +506,13 @@ class PCBTable:
 
 class PCB:
 
-    def __init__(self, name, base_dir, max_dir):
+    def __init__(self, name):
         # TODO: instead of base_dir, a PCB should have its PageTable
         self._pid = None
         self._name = name
         self._state = "New"
-        self._base_dir = base_dir
-        self._max_dir = max_dir
+        # self._base_dir = base_dir
+        # self._max_dir = max_dir
         self._pc = 0
         self._priority = random.randint(0, 4)
 
@@ -563,17 +564,8 @@ class PCB:
 class Loader:
 
     def __init__(self, manager):
-        # self._available_cell = 0
         self._memory_manager = manager
-        self._frame_size = manager.frame_size()
-
-    # @property
-    # def available_cell(self):
-    #     return self._available_cell
-
-    # @available_cell.setter
-    # def available_cell(self, value):
-    #     self._available_cell = value
+        self._frame_size = manager.frame_size
 
     @property
     def memory_manager(self):
@@ -584,33 +576,33 @@ class Loader:
         return self._frame_size
 
     def load(self, program, pid):
-        # TODO: this method should create the page table (DONE?)
         # TODO: check if there is enough space!!! If not, there is an error
-        frame_size = self.memory_manager.frame_size
         prog_size = len(program.instructions)
-        page_table = self.create_page_table(pid, prog_size, frame_size)
-        # TODO: add the new pageTable to the memory_manager (DONE?)
-        page_tuple_list = page_table.table
-        for page_tuple in page_tuple_list:
+        page_table = self.create_page_table(pid, prog_size, self.frame_size)
+        for page_tuple in page_table.table:
             self.load_page(program, page_tuple[0], page_tuple[1])
 
     def create_page_table(self, pid, prog_size, frame_size):
         pages_number = prog_size / frame_size + 1
         table = PageTable(pid)
-        for page in range(0, pages_number):
-            table.add(page, self.memory_manager.next_frame)
+        for page in range(0, int(pages_number)):
+            table.add(page, self.memory_manager.next_frame())
         self.memory_manager.addTable(table)
+        log.logger.info(table)
         return table
 
     def load_page(self, program, page, frame):
-        position = page * self.frame_size
-        prog_size = len(program.size)
+        log.logger.info("Loading Page " + str(page) + " in Frame " + str(frame))
+        baseDirProgram = page * self.frame_size
+        baseDirMemory = frame * self.frame_size
+        prog_size = len(program.instructions)
         counter = 0
-        while counter < self.frame_size & position < prog_size:
-            instruction = program.instructions[position]
-            HARDWARE.memory.put(frame * self.frame_size + counter, instruction)
-            position = position + 1
+        while (counter < self.frame_size) & (baseDirProgram < prog_size):
+            instruction = program.instructions[baseDirProgram]
+            HARDWARE.memory.put(baseDirMemory + counter, instruction)
+            baseDirProgram = baseDirProgram + 1
             counter = counter + 1
+        log.logger.info("Page " + str(page) + " loaded successfully")
 
 
 class Dispatcher:
@@ -628,12 +620,8 @@ class Dispatcher:
         HARDWARE.cpu.pc = -1
 
     def load(self, pcb):
-        # TODO: this method sets the table into the mmu instead of the base_dir (DONE?)
-        # TODO: the PageTable that I get should be a clone, not a reference to the original (DONE?)
-        table = self.kernel.memory_manager.findTable(pcb.pid)
+        table = self.kernel.memory_manager.find_table(pcb.pid)
         HARDWARE.mmu.page_table = table
-        # HARDWARE.mmu.base_dir = pcb.base_dir
-        HARDWARE.mmu.limit = pcb.max_dir
         HARDWARE.cpu.pc = pcb.pc
         if self._kernel.has_running():
             HARDWARE.timer.reset()
@@ -660,13 +648,12 @@ class MemoryManager:
 
     def __init__(self, frame_size, memory_size):
         self._frame_size = frame_size
-        # TODO: define structure of the page_table (DONE?)
         self._page_table = []
         self._free_memory = memory_size
         self._free_frames = []
         self._used_frames = []
         pages_number = self._free_memory / self.frame_size
-        for index in range(0, pages_number):
+        for index in range(0, int(pages_number)):
             self._free_frames.append(index)
 
     @property
@@ -683,7 +670,7 @@ class MemoryManager:
 
     @free_memory.setter
     def free_memory(self, value):
-        self.free_memory = value
+        self._free_memory = value
 
     @property
     def free_frames(self):
@@ -703,7 +690,6 @@ class MemoryManager:
         self.page_table.append(table)
 
     def find_table(self, pid):
-        # TODO: res should be a clone of the table (DONE?)
         res = None
         for table in self.page_table:
             if table.pid == pid:
@@ -736,3 +722,6 @@ class PageTable:
         res = PageTable(self.pid)
         res.table = self.table
         return res
+
+    def __repr__(self):
+        return "Page Table ---> pid: {pid} table: {table}".format(pid=self.pid, table=self.table)
