@@ -191,12 +191,12 @@ class Memory():
 
 ## emulates the Memory Management Unit (MMU)
 class MMU():
-    # TODO: this class should have a Page Table instead of a base_dir
     # TODO: the interruption #PAGE_FAULT comes from here
 
     def __init__(self, memory):
         self._memory = memory
         self._page_table = None
+        self._frame_size = None
 
     @property
     def page_table(self):
@@ -206,24 +206,24 @@ class MMU():
     def page_table(self, table):
         self._page_table = table
 
-    # def fetch(self,  logicalAddress):
-    #     if (logicalAddress >= self._limit):
-    #         raise Exception("Invalid Address,  {logicalAddress} is eq or higher than process limit: {limit}".format(limit = self._limit, logicalAddress = logicalAddress))
-    #     else:
-    #         physicalAddress = logicalAddress + self._base_dir
-    #         return self._memory.get(physicalAddress)
+    @property
+    def frame_size(self):
+        return self._frame_size
+
+    @frame_size.setter
+    def frame_size(self, value):
+        self._frame_size = value
 
     def fetch(self, logical_address):
-        # TODO: this method is okay? The frame_size needs to be set as a variable
-        pair_div_mod = divmod(logical_address, 4)
+        pair_div_mod = divmod(logical_address, self.frame_size)
         page_number = pair_div_mod[0]
         offset = pair_div_mod[1]
-        page_frame_tuple = self.page_table.findTuple(page_number)
+        page_frame_tuple = self.page_table.find_tuple(page_number)
         physical_address = logical_address * page_frame_tuple[1] + offset
         return self._memory.get(physical_address)
 
     def __repr__(self):
-        return "MMU (Base Dir = {base} / Max Dir = {max})".format(base=self._base_dir, max=self._limit)
+        return "MMU ---> {table}".format(table=self.page_table)
 
 
 ## emulates the main Central Processor Unit

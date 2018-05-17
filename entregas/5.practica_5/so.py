@@ -180,9 +180,6 @@ class NewInterruptionHandler(AbstractInterruptionHandler):
 
     def execute(self, irq):
         program = irq.parameters
-        # TODO: this base_dir is not necessary
-        # base_dir = self.kernel.loader.available_cell
-        length = len(program.instructions)
         # TODO: I changed the order of creating the PCB and loading the program
         pcb = self.kernel.create_pcb(program.name)
         self.kernel.loader.load(program, pcb.pid)
@@ -221,8 +218,6 @@ class Kernel:
 
         # controls the Hardware's I/O Device
         self._io_device_controller = IoDeviceController(self, HARDWARE.ioDevice)
-
-        # TODO: I am passing the memory_manager as parameter of the loader
         self._memory_manager = MemoryManager(4, HARDWARE.memory.size())
         self._loader = Loader(self.memory_manager)
         self._dispatcher = Dispatcher(self)
@@ -507,12 +502,9 @@ class PCBTable:
 class PCB:
 
     def __init__(self, name):
-        # TODO: instead of base_dir, a PCB should have its PageTable
         self._pid = None
         self._name = name
         self._state = "New"
-        # self._base_dir = base_dir
-        # self._max_dir = max_dir
         self._pc = 0
         self._priority = random.randint(0, 4)
 
@@ -536,14 +528,6 @@ class PCB:
         self._state = new_state
 
     @property
-    def base_dir(self):
-        return self._base_dir
-
-    @property
-    def max_dir(self):
-        return self._max_dir
-
-    @property
     def pc(self):
         return self._pc
 
@@ -556,9 +540,9 @@ class PCB:
 
     def __repr__(self):
         return "PCB ---> pid: {pid} program: {name} state: {state} " \
-               "baseDir: {baseDir} maxDir: {maxDir} priority: {priority} pc: {pc}" \
+               "priority: {priority} pc: {pc}" \
             .format(pid=self.pid, name=self.name, state=self.state,
-                    baseDir=self.base_dir, maxDir=self.max_dir, priority=self.priority, pc=self.pc)
+                    priority=self.priority, pc=self.pc)
 
 
 class Loader:
@@ -587,20 +571,20 @@ class Loader:
         table = PageTable(pid)
         for page in range(0, int(pages_number)):
             table.add(page, self.memory_manager.next_frame())
-        self.memory_manager.addTable(table)
+        self.memory_manager.add_table(table)
         log.logger.info(table)
         return table
 
     def load_page(self, program, page, frame):
         log.logger.info("Loading Page " + str(page) + " in Frame " + str(frame))
-        baseDirProgram = page * self.frame_size
-        baseDirMemory = frame * self.frame_size
+        base_dir_program = page * self.frame_size
+        base_dir_memory = frame * self.frame_size
         prog_size = len(program.instructions)
         counter = 0
-        while (counter < self.frame_size) & (baseDirProgram < prog_size):
-            instruction = program.instructions[baseDirProgram]
-            HARDWARE.memory.put(baseDirMemory + counter, instruction)
-            baseDirProgram = baseDirProgram + 1
+        while (counter < self.frame_size) & (base_dir_program < prog_size):
+            instruction = program.instructions[base_dir_program]
+            HARDWARE.memory.put(base_dir_memory + counter, instruction)
+            base_dir_program = base_dir_program + 1
             counter = counter + 1
         log.logger.info("Page " + str(page) + " loaded successfully")
 
@@ -655,6 +639,7 @@ class MemoryManager:
         pages_number = self._free_memory / self.frame_size
         for index in range(0, int(pages_number)):
             self._free_frames.append(index)
+        HARDWARE.mmu.frame_size = frame_size
 
     @property
     def frame_size(self):
@@ -686,7 +671,7 @@ class MemoryManager:
         self.used_frames.append(frame)
         return frame
 
-    def addTable(self, table):
+    def add_table(self, table):
         self.page_table.append(table)
 
     def find_table(self, pid):
@@ -721,6 +706,13 @@ class PageTable:
     def clone(self):
         res = PageTable(self.pid)
         res.table = self.table
+        return res
+
+    def find_tuple(self, page_number):
+        res = None
+        for pair in self.table:
+            if pair[0] == page_number:
+                res = pair
         return res
 
     def __repr__(self):
