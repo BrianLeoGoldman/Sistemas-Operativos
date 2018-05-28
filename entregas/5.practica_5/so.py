@@ -152,6 +152,7 @@ class KillInterruptionHandler(AbstractInterruptionHandler):
         self.kernel.change_state(pcb, "Terminated")
         self.kernel.terminate()
         self.kernel.dispatcher.save(pcb)
+        self.kernel.memory_manager.release_space(pcb.pid)
         self.context_switch()
 
 
@@ -180,7 +181,7 @@ class NewInterruptionHandler(AbstractInterruptionHandler):
 
     def execute(self, irq):
         program = irq.parameters
-        # TODO: I changed the order of creating the PCB and loading the program
+        # TODO: when the Loader loads a program, it should return a boolean indicating if the loading was successful?
         pcb = self.kernel.create_pcb(program.name)
         self.kernel.loader.load(program, pcb.pid)
         self.get_ready(pcb)
@@ -218,7 +219,7 @@ class Kernel:
 
         # controls the Hardware's I/O Device
         self._io_device_controller = IoDeviceController(self, HARDWARE.ioDevice)
-        self._memory_manager = MemoryManager(4, HARDWARE.memory.size())
+        self._memory_manager = MemoryManager(4, HARDWARE.memory.size)
         self._loader = Loader(self.memory_manager)
         self._dispatcher = Dispatcher(self)
         self._table = PCBTable(30)
@@ -560,11 +561,14 @@ class Loader:
         return self._frame_size
 
     def load(self, program, pid):
-        # TODO: check if there is enough space!!! If not, there is an error
-        prog_size = len(program.instructions)
-        page_table = self.create_page_table(pid, prog_size, self.frame_size)
-        for page_tuple in page_table.table:
-            self.load_page(program, page_tuple[0], page_tuple[1])
+        if self.memory_manager.has_enough_space(len(program.instructions)):
+            prog_size = len(program.instructions)
+            page_table = self.create_page_table(pid, prog_size, self.frame_size)
+            for page_tuple in page_table.table:
+                self.load_page(program, page_tuple[0], page_tuple[1])
+        else:
+            log.logger.info("The amount of empty space is insufficient to load this program")
+            raise SystemExit
 
     def create_page_table(self, pid, prog_size, frame_size):
         pages_number = prog_size / frame_size + 1
@@ -632,8 +636,8 @@ class MemoryManager:
 
     def __init__(self, frame_size, memory_size):
         self._frame_size = frame_size
-        self._page_table = []
         self._free_memory = memory_size
+        self._page_table = []
         self._free_frames = []
         self._used_frames = []
         pages_number = self._free_memory / self.frame_size
@@ -646,16 +650,16 @@ class MemoryManager:
         return self._frame_size
 
     @property
-    def page_table(self):
-        return self._page_table
-
-    @property
     def free_memory(self):
         return self._free_memory
 
     @free_memory.setter
     def free_memory(self, value):
         self._free_memory = value
+
+    @property
+    def page_table(self):
+        return self._page_table
 
     @property
     def free_frames(self):
@@ -680,6 +684,23 @@ class MemoryManager:
             if table.pid == pid:
                 res = table.clone()
         return res
+
+    def has_enough_space(self, program_size):
+        return self.free_memory >= program_size
+
+    def release_space(self, pid):
+        used_frames = self.process_used_frames(pid)
+        self.free_memory = self.free_memory + len(used_frames) * self.frame_size
+        for frame in used_frames:
+            self.used_frames.remove(frame)
+            self.free_frames.append(frame)
+
+    def process_used_frames(self, pid):
+        page_table = self.find_table(pid)
+        final_list = []
+        for pair in page_table.table:
+            final_list.append(pair[1])
+        return final_list
 
 
 class PageTable:

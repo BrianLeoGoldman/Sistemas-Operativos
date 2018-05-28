@@ -175,9 +175,11 @@ class Memory():
 
     def __init__(self, size):
         self._cells = [''] * size
+        self._size = size
 
+    @property
     def size(self):
-        return self._cells.__sizeof__()
+        return self._size
 
     def put(self, addr, value):
         self._cells[addr] = value
@@ -218,8 +220,12 @@ class MMU():
         pair_div_mod = divmod(logical_address, self.frame_size)
         page_number = pair_div_mod[0]
         offset = pair_div_mod[1]
-        page_frame_tuple = self.page_table.find_tuple(page_number)
-        physical_address = logical_address * page_frame_tuple[1] + offset
+        frame_number = self.page_table.find_tuple(page_number)[1]
+        physical_address = self.frame_size * frame_number + offset
+        log.logger.info("Page number:" + str(page_number))
+        log.logger.info("Offset: " + str(offset))
+        log.logger.info("Logical address: " + str(logical_address))
+        log.logger.info("Physical address: " + str(physical_address))
         return self._memory.get(physical_address)
 
     def __repr__(self):
