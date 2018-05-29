@@ -153,6 +153,26 @@ class Timer:
             log.logger.info("Timer reset")
 
 
+## emulates the swap memory
+class Swap:
+
+    def __init__(self):
+        self._memory = { }
+
+    @property
+    def memory(self):
+        return self._memory
+
+    def add(self, pid, page, instructions):
+        self.memory[(pid, page)] = instructions
+
+    def get(self, pid, page):
+        return self.memory[(pid, page)]
+
+    def delete(self, pid, page):
+        del self.memory[(pid, page)]
+
+
 ## emulates the Hard Disk Drive (HDD)
 class HDD():
 
@@ -343,6 +363,7 @@ class Hardware():
     ## Setup our hardware
     def setup(self, memorySize):
         ## add the components to the "motherboard"
+        self._swap = Swap()
         self._disk = HDD()
         self._memory = Memory(memorySize)
         self._interruptVector = InterruptVector()
@@ -386,6 +407,10 @@ class Hardware():
     @property
     def disk(self):
         return self._disk
+
+    @property
+    def swap(self):
+        return self._swap
 
     def addProgram(self, program):
         self._disk.addProgram(program)

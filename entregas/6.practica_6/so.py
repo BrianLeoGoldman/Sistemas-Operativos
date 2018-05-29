@@ -205,15 +205,24 @@ class PageFaultInterruptionHandler(AbstractInterruptionHandler):
         page_table = self.kernel.memory_manager.find_table(pid)
         row = page_table.find_row(page_number)
         if row.swap:
-            pass
             # TODO: Look in swap
+            instructions = HARDWARE.swap.get(pid, page_number)
+            HARDWARE.swap.delete(pid, page_number)
+            frame = self.kernel.memory_manager.next_frame()
+            self.kernel.loader.load_page(instructions, page_number, frame)
+            swap_is_on = True
         else:
+            # TODO: Look in HDD
             program_name = self.kernel.get_current().name
             program = HARDWARE.disk.getProgram(program_name)
-            log.logger.info(program)
-            self.kernel.loader.load_page(program, page_number, self.kernel.memory_manager.next_frame())
-            # TODO: Look in HDD
+            frame = self.kernel.memory_manager.next_frame()
+            self.kernel.loader.load_page(program, page_number, frame)
+            swap_is_on = False
         # TODO: the page_table has to be updated (the page is now associated with a frame and the valid_bit is True)
+        self.kernel.loader.update_page_table(pid, page_number, frame, swap_is_on)
+        # TODO: the pc in the cpu has to remain the same
+        HARDWARE.cpu.pc -= 1
+
 
 
 # emulates the core of an Operative System
@@ -617,6 +626,10 @@ class Loader:
             counter = counter + 1
         log.logger.info("Page " + str(page) + " loaded successfully")
 
+    def update_page_table(self, pid, page, frame, swap_is_on):
+        self.memory_manager.update_page_table(pid, page, frame, swap_is_on)
+        HARDWARE.mmu.page_table.update(page, frame, swap_is_on)
+
 
 class Dispatcher:
 
@@ -723,9 +736,15 @@ class MemoryManager:
     def process_used_frames(self, pid):
         page_table = self.find_table(pid)
         final_list = []
-        for pair in page_table.table:
-            final_list.append(pair[1])
+        for row in page_table.page_list:
+            final_list.append(row.frame)
         return final_list
+
+    def update_page_table(self, pid, page, frame, swap_is_on):
+        for table in self.page_table:
+            if table.pid == pid:
+                table.update(page, frame, swap_is_on)
+
 
 
 class PageRow:
@@ -744,13 +763,29 @@ class PageRow:
     def frame(self):
         return self._frame
 
+    @frame.setter
+    def frame(self, value):
+        self._frame = value
+
     @property
     def valid_bit(self):
         return self._valid_bit
 
+    @valid_bit.setter
+    def valid_bit(self, bool):
+        self._valid_bit = bool
+
     @property
     def swap(self):
         return self._swap
+
+    @swap.setter
+    def swap(self, value):
+        self._swap = value
+
+    def update(self, frame):
+        self.frame = frame
+        self.valid_bit = True
 
     def __repr__(self):
         return "Row ---> page: {page} frame: {frame} valid_bit: {valid_bit} swap: {swap}"\
@@ -793,6 +828,13 @@ class PageTable:
     def page_is_loaded(self, page_number):
         row = self.find_row(page_number)
         return row.valid_bit
+
+    def update(self, page, frame, swap_is_on):
+        for page_row in self.page_list:
+            if page_row.page == page:
+                page_row.update(frame)
+                page_row.swap = swap_is_on
+
 
     def __repr__(self):
         return "Page Table ---> pid: {pid} list: {list}".format(pid=self.pid, list=self.page_list)
