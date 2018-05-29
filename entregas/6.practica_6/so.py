@@ -197,6 +197,26 @@ class TimeOutInterruptionHandler(AbstractInterruptionHandler):
             self.kernel.dispatcher.context_switch()
 
 
+class PageFaultInterruptionHandler(AbstractInterruptionHandler):
+
+    def execute(self, irq):
+        log.logger.info("Estoy en PageFaultInterruptonHandler")
+        page_number = irq.parameters
+        log.logger.info("page_number: " + str(page_number))
+        pid = self.kernel.get_current().pid
+        log.logger.info("pid: " + str(pid))
+        page_table = self.kernel.memory_manager.find_table(pid)
+        log.logger.info("page_table: " + str(page_table))
+        row = page_table.find_row(page_number)
+        # TODO: The name of the program is necessary
+        if row.swap:
+            pass
+            # TODO: Look in swap
+        else:
+            pass
+            # TODO: Look in HDD
+
+
 # emulates the core of an Operative System
 class Kernel:
 
@@ -216,6 +236,9 @@ class Kernel:
 
         time_out_handler = TimeOutInterruptionHandler(self)
         HARDWARE.interruptVector.register(TIME_OUT_INTERRUPTION_TYPE, time_out_handler)
+
+        page_fault_handler = PageFaultInterruptionHandler(self)
+        HARDWARE.interruptVector.register(PAGE_FAULT_INTERRUPTION_TYPE, page_fault_handler)
 
         # controls the Hardware's I/O Device
         self._io_device_controller = IoDeviceController(self, HARDWARE.ioDevice)
@@ -564,9 +587,11 @@ class Loader:
         if self.memory_manager.has_enough_space(len(program.instructions)):
             prog_size = len(program.instructions)
             page_table = self.create_page_table(pid, prog_size, self.frame_size)
-            for page_tuple in page_table.table:
-                self.load_page(program, page_tuple[0], page_tuple[1])
+            # for page_tuple in page_table.table:
+            #    self.load_page(program, page_tuple[0], page_tuple[1])
+            # TODO: it should not load anything at the beginning, only when there is #PAGE_FAULT
         else:
+            # TODO: if there is not enough space, another process page should be removed from memory
             log.logger.info("The amount of empty space is insufficient to load this program")
             raise SystemExit
 
@@ -703,38 +728,71 @@ class MemoryManager:
         return final_list
 
 
+class PageRow:
+
+    def __init__(self, page_number, frame_number):
+        self._page = page_number
+        self._frame = frame_number
+        self._valid_bit = False
+        self._swap = False
+
+    @property
+    def page(self):
+        return self._page
+
+    @property
+    def frame(self):
+        return self._frame
+
+    @property
+    def valid_bit(self):
+        return self._valid_bit
+
+    @property
+    def swap(self):
+        return self._swap
+
+    def __repr__(self):
+        return "Row ---> page: {page} frame: {frame} valid_bit: {valid_bit} swap: {swap}"\
+            .format(page=self.page, frame=self.frame, valid_bit=self.valid_bit, swap=self.swap)
+
+
 class PageTable:
 
     def __init__(self, pid):
         self._pid = pid
-        self._table = []
+        self._page_list = []
 
     @property
     def pid(self):
         return self._pid
 
     @property
-    def table(self):
-        return self._table
+    def page_list(self):
+        return self._page_list
 
-    @table.setter
-    def table(self, new_table):
-        self._table = new_table
+    @page_list.setter
+    def page_list(self, new_list):
+        self._page_list = new_list
 
     def add(self, page, next_frame):
-        self._table.append((page, next_frame))
+        self._page_list.append(PageRow(page, next_frame))
 
     def clone(self):
         res = PageTable(self.pid)
-        res.table = self.table
+        res.page_list = self.page_list
         return res
 
-    def find_tuple(self, page_number):
+    def find_row(self, page_number):
         res = None
-        for pair in self.table:
-            if pair[0] == page_number:
-                res = pair
+        for page_row in self.page_list:
+            if page_row.page == page_number:
+                res = page_row
         return res
+
+    def page_is_loaded(self, page_number):
+        row = self.find_row(page_number)
+        return row.valid_bit
 
     def __repr__(self):
-        return "Page Table ---> pid: {pid} table: {table}".format(pid=self.pid, table=self.table)
+        return "Page Table ---> pid: {pid} list: {list}".format(pid=self.pid, list=self.page_list)

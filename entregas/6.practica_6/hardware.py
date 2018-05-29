@@ -41,6 +41,7 @@ IO_IN_INTERRUPTION_TYPE = "#IO_IN"
 IO_OUT_INTERRUPTION_TYPE = "#IO_OUT"
 NEW_INTERRUPTION_TYPE = "#NEW"
 TIME_OUT_INTERRUPTION_TYPE = "#TIME_OUT"
+PAGE_FAULT_INTERRUPTION_TYPE = "#PAGE_FAULT"
 
 ## emulates an Interrupt request
 class IRQ:
@@ -193,7 +194,6 @@ class Memory():
 
 ## emulates the Memory Management Unit (MMU)
 class MMU():
-    # TODO: the interruption #PAGE_FAULT comes from here
 
     def __init__(self, memory):
         self._memory = memory
@@ -220,13 +220,19 @@ class MMU():
         pair_div_mod = divmod(logical_address, self.frame_size)
         page_number = pair_div_mod[0]
         offset = pair_div_mod[1]
-        frame_number = self.page_table.find_tuple(page_number)[1]
-        physical_address = self.frame_size * frame_number + offset
-        log.logger.info("Page number:" + str(page_number))
-        log.logger.info("Offset: " + str(offset))
-        log.logger.info("Logical address: " + str(logical_address))
-        log.logger.info("Physical address: " + str(physical_address))
-        return self._memory.get(physical_address)
+        if self.page_table.page_is_loaded(page_number):
+            row = self.page_table.find_row(page_number)
+            frame_number = row.frame
+            physical_address = self.frame_size * frame_number + offset
+            log.logger.info("Page number:" + str(page_number))
+            log.logger.info("Offset: " + str(offset))
+            log.logger.info("Logical address: " + str(logical_address))
+            log.logger.info("Physical address: " + str(physical_address))
+            return self._memory.get(physical_address)
+        else:
+            # TODO: the interruption #PAGE_FAULT comes from here
+            page_fault_IRQ = IRQ(PAGE_FAULT_INTERRUPTION_TYPE, page_number)
+            HARDWARE.interruptVector.handle(page_fault_IRQ)
 
     def __repr__(self):
         return "MMU ---> {table}".format(table=self.page_table)
