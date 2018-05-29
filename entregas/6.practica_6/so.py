@@ -200,21 +200,20 @@ class TimeOutInterruptionHandler(AbstractInterruptionHandler):
 class PageFaultInterruptionHandler(AbstractInterruptionHandler):
 
     def execute(self, irq):
-        log.logger.info("Estoy en PageFaultInterruptonHandler")
         page_number = irq.parameters
-        log.logger.info("page_number: " + str(page_number))
         pid = self.kernel.get_current().pid
-        log.logger.info("pid: " + str(pid))
         page_table = self.kernel.memory_manager.find_table(pid)
-        log.logger.info("page_table: " + str(page_table))
         row = page_table.find_row(page_number)
-        # TODO: The name of the program is necessary
         if row.swap:
             pass
             # TODO: Look in swap
         else:
-            pass
+            program_name = self.kernel.get_current().name
+            program = HARDWARE.disk.getProgram(program_name)
+            log.logger.info(program)
+            self.kernel.loader.load_page(program, page_number, self.kernel.memory_manager.next_frame())
             # TODO: Look in HDD
+        # TODO: the page_table has to be updated (the page is now associated with a frame and the valid_bit is True)
 
 
 # emulates the core of an Operative System
@@ -599,19 +598,20 @@ class Loader:
         pages_number = prog_size / frame_size + 1
         table = PageTable(pid)
         for page in range(0, int(pages_number)):
-            table.add(page, self.memory_manager.next_frame())
+            # self.memory_manager.next_frame()
+            table.add(page, None)
         self.memory_manager.add_table(table)
         log.logger.info(table)
         return table
 
-    def load_page(self, program, page, frame):
+    def load_page(self, instructions, page, frame):
         log.logger.info("Loading Page " + str(page) + " in Frame " + str(frame))
         base_dir_program = page * self.frame_size
         base_dir_memory = frame * self.frame_size
-        prog_size = len(program.instructions)
+        prog_size = len(instructions)
         counter = 0
         while (counter < self.frame_size) & (base_dir_program < prog_size):
-            instruction = program.instructions[base_dir_program]
+            instruction = instructions[base_dir_program]
             HARDWARE.memory.put(base_dir_memory + counter, instruction)
             base_dir_program = base_dir_program + 1
             counter = counter + 1
