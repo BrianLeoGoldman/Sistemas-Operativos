@@ -155,6 +155,7 @@ class Timer:
 
 ## emulates the swap memory
 class Swap:
+    # TODO: change the structure of the swap memory (a list of cells and a list of empty frames)
 
     def __init__(self):
         self._memory = { }
@@ -240,19 +241,18 @@ class MMU():
         pair_div_mod = divmod(logical_address, self.frame_size)
         page_number = pair_div_mod[0]
         offset = pair_div_mod[1]
-        if self.page_table.page_is_loaded(page_number):
-            row = self.page_table.find_row(page_number)
-            frame_number = row.frame
-            physical_address = self.frame_size * frame_number + offset
-            log.logger.info("Page number:" + str(page_number))
-            log.logger.info("Offset: " + str(offset))
-            log.logger.info("Logical address: " + str(logical_address))
-            log.logger.info("Physical address: " + str(physical_address))
-            return self._memory.get(physical_address)
-        else:
+        if not self.page_table.page_is_loaded(page_number):
             # TODO: the interruption #PAGE_FAULT comes from here
             page_fault_IRQ = IRQ(PAGE_FAULT_INTERRUPTION_TYPE, page_number)
             HARDWARE.interruptVector.handle(page_fault_IRQ)
+        row = self.page_table.find_row(page_number)
+        frame_number = row.frame
+        physical_address = self.frame_size * frame_number + offset
+        log.logger.info("Page number:" + str(page_number))
+        log.logger.info("Offset: " + str(offset))
+        log.logger.info("Logical address: " + str(logical_address))
+        log.logger.info("Physical address: " + str(physical_address))
+        return self._memory.get(physical_address)
 
     def __repr__(self):
         return "MMU ---> {table}".format(table=self.page_table)

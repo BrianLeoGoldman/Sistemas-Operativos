@@ -144,7 +144,7 @@ class AbstractInterruptionHandler:
 
 
 class KillInterruptionHandler(AbstractInterruptionHandler):
-    # TODO: this interruption should release memory
+    # TODO: this interruption should release memory (swap included!)
 
     def execute(self, irq):
         log.logger.info(" Program Finished ")
@@ -200,6 +200,7 @@ class TimeOutInterruptionHandler(AbstractInterruptionHandler):
 class PageFaultInterruptionHandler(AbstractInterruptionHandler):
 
     def execute(self, irq):
+        # TODO: in this method we check if there is enough space and if there isn´t we choose a victim to swap out
         page_number = irq.parameters
         pid = self.kernel.get_current().pid
         page_table = self.kernel.memory_manager.find_table(pid)
@@ -207,7 +208,7 @@ class PageFaultInterruptionHandler(AbstractInterruptionHandler):
         if row.swap:
             # TODO: Look in swap
             instructions = HARDWARE.swap.get(pid, page_number)
-            HARDWARE.swap.delete(pid, page_number)
+            HARDWARE.swap.delete(pid, page_number) # TODO: should it be done now or in the kill interruption?
             frame = self.kernel.memory_manager.next_frame()
             self.kernel.loader.load_page(instructions, page_number, frame)
             swap_is_on = True
@@ -220,9 +221,6 @@ class PageFaultInterruptionHandler(AbstractInterruptionHandler):
             swap_is_on = False
         # TODO: the page_table has to be updated (the page is now associated with a frame and the valid_bit is True)
         self.kernel.loader.update_page_table(pid, page_number, frame, swap_is_on)
-        # TODO: the pc in the cpu has to remain the same
-        HARDWARE.cpu.pc -= 1
-
 
 
 # emulates the core of an Operative System
