@@ -79,6 +79,9 @@ if __name__ == '__main__':
         for pcb in pcb_list:
             print(pcb)
 
+    def print_swap():
+        print(HARDWARE.swap)
+
 
     def execute_program():
         name = input()
@@ -106,6 +109,7 @@ if __name__ == '__main__':
         "ready": print_ready,
         "io": print_io,
         "table": print_pcb_table,
+        "swap": print_swap,
         "execute": execute_program,
         "exit": finish_test
     }

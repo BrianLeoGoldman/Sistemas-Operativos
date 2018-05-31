@@ -181,9 +181,9 @@ class NewInterruptionHandler(AbstractInterruptionHandler):
 
     def execute(self, irq):
         program = irq.parameters
-        # TODO: when the Loader loads a program, it should return a boolean indicating if the loading was successful?
         pcb = self.kernel.create_pcb(program.name)
         self.kernel.loader.load(program, pcb.pid)
+        # TODO: when the Loader loads a program, it should only create the page table
         self.get_ready(pcb)
 
 
@@ -200,27 +200,23 @@ class TimeOutInterruptionHandler(AbstractInterruptionHandler):
 class PageFaultInterruptionHandler(AbstractInterruptionHandler):
 
     def execute(self, irq):
-        # TODO: in this method we check if there is enough space and if there isn´t we choose a victim to swap out
         page_number = irq.parameters
         pid = self.kernel.get_current().pid
         page_table = self.kernel.memory_manager.find_table(pid)
         row = page_table.find_row(page_number)
         if row.swap:
-            # TODO: Look in swap
-            instructions = HARDWARE.swap.get(pid, page_number)
-            HARDWARE.swap.delete(pid, page_number) # TODO: should it be done now or in the kill interruption?
-            frame = self.kernel.memory_manager.next_frame()
-            self.kernel.loader.load_page(instructions, page_number, frame)
-            swap_is_on = True
+            # Look in swap
+            instructions = HARDWARE.swap.get_frame(row.frame)
+            HARDWARE.swap.delete_frame(row.frame)  # TODO: should it be done now or in the kill interruption?
         else:
-            # TODO: Look in HDD
+            # Look in disk
             program_name = self.kernel.get_current().name
-            program = HARDWARE.disk.getProgram(program_name)
-            frame = self.kernel.memory_manager.next_frame()
-            self.kernel.loader.load_page(program, page_number, frame)
-            swap_is_on = False
-        # TODO: the page_table has to be updated (the page is now associated with a frame and the valid_bit is True)
-        self.kernel.loader.update_page_table(pid, page_number, frame, swap_is_on)
+            instructions = HARDWARE.disk.getProgram(program_name)
+        if not self.kernel.memory_manager.has_enough_space(self.kernel.memory_manager.frame_size):
+            self.kernel.memory_manager.choose_victim()
+        frame = self.kernel.memory_manager.next_frame()
+        self.kernel.loader.load_page(instructions, page_number, frame)  # TODO: should receive only the frame to load?
+        self.kernel.loader.update_page_table(pid, page_number, frame, False)  # TODO: swap_is_on should be False?
 
 
 # emulates the core of an Operative System
@@ -590,14 +586,13 @@ class Loader:
         return self._frame_size
 
     def load(self, program, pid):
+        # TODO: it should not load anything at the beginning, only when there is #PAGE_FAULT (and no if needed)
         if self.memory_manager.has_enough_space(len(program.instructions)):
             prog_size = len(program.instructions)
             page_table = self.create_page_table(pid, prog_size, self.frame_size)
             # for page_tuple in page_table.table:
             #    self.load_page(program, page_tuple[0], page_tuple[1])
-            # TODO: it should not load anything at the beginning, only when there is #PAGE_FAULT
         else:
-            # TODO: if there is not enough space, another process page should be removed from memory
             log.logger.info("The amount of empty space is insufficient to load this program")
             raise SystemExit
 
@@ -832,6 +827,7 @@ class PageTable:
             if page_row.page == page:
                 page_row.update(frame)
                 page_row.swap = swap_is_on
+                # TODO: all the update should be done in update method
 
 
     def __repr__(self):

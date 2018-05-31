@@ -155,23 +155,34 @@ class Timer:
 
 ## emulates the swap memory
 class Swap:
-    # TODO: change the structure of the swap memory (a list of cells and a list of empty frames)
+    # TODO: add frames and get frames methods
 
-    def __init__(self):
-        self._memory = { }
+    def __init__(self, size, frame_size):
+        self._cells = [''] * size
+        self._size = size
+        self._frame_size = frame_size
+        self._empty_frames = []
+        frames_number = size / frame_size
+        for index in range(0, int(frames_number)):
+            self._empty_frames.append(index)
 
     @property
-    def memory(self):
-        return self._memory
+    def size(self):
+        return self._size
 
-    def add(self, pid, page, instructions):
-        self.memory[(pid, page)] = instructions
+    @property
+    def frame_size(self):
+        return self._frame_size
 
-    def get(self, pid, page):
-        return self.memory[(pid, page)]
+    def put(self, addr, value):
+        self._cells[addr] = value
 
-    def delete(self, pid, page):
-        del self.memory[(pid, page)]
+    def get(self, addr):
+        return self._cells[addr]
+
+    def __repr__(self):
+        return "Empty frames ---> {empty_frames}\n{cells}"\
+            .format(empty_frames=self._empty_frames, cells=tabulate(enumerate(self._cells), tablefmt='psql'))
 
 
 ## emulates the Hard Disk Drive (HDD)
@@ -242,7 +253,6 @@ class MMU():
         page_number = pair_div_mod[0]
         offset = pair_div_mod[1]
         if not self.page_table.page_is_loaded(page_number):
-            # TODO: the interruption #PAGE_FAULT comes from here
             page_fault_IRQ = IRQ(PAGE_FAULT_INTERRUPTION_TYPE, page_number)
             HARDWARE.interruptVector.handle(page_fault_IRQ)
         row = self.page_table.find_row(page_number)
@@ -363,7 +373,8 @@ class Hardware():
     ## Setup our hardware
     def setup(self, memorySize):
         ## add the components to the "motherboard"
-        self._swap = Swap()
+        # TODO: swap size and frame size should come from dependency injection (and size should be frame_size * n)
+        self._swap = Swap(16, 4)
         self._disk = HDD()
         self._memory = Memory(memorySize)
         self._interruptVector = InterruptVector()
