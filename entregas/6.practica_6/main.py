@@ -25,7 +25,7 @@ if __name__ == '__main__':
     HARDWARE.addProgram(prg3)
     
     ## new create the Operative System Kernel
-    kernel = Kernel()
+    kernel = Kernel(4)
 
     # execute all programs "concurrently"
     kernel.execute("prg1.exe")

@@ -24,7 +24,7 @@ if __name__ == '__main__':
     HARDWARE.addProgram(prg5)
 
     # new create the Operative System Kernel
-    kernel = Kernel()
+    kernel = Kernel(4)
     # variable used to count the tick number
     tickNbr = 0
     # variable used to run the test

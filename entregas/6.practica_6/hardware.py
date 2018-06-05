@@ -180,6 +180,17 @@ class Swap:
     def get(self, addr):
         return self._cells[addr]
 
+    def put_frame(self, instructions):
+        frame_to_use = self.next_frame()
+        address = frame_to_use * self.frame_size
+        for instruction in instructions:
+            self.put(address, instruction)
+            address = address + 1
+
+    def next_frame(self):
+        # TODO: the swap should keep a list of used frames
+        return self._empty_frames.pop(0)
+
     def __repr__(self):
         return "Empty frames ---> {empty_frames}\n{cells}"\
             .format(empty_frames=self._empty_frames, cells=tabulate(enumerate(self._cells), tablefmt='psql'))
