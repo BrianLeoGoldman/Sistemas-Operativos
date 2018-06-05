@@ -72,6 +72,9 @@ if __name__ == '__main__':
     def print_io():
         print(kernel.io_device_controller)
 
+    def print_memory_manager():
+        print(kernel.memory_manager)
+
 
     def print_pcb_table():
         pcb_list = kernel.table.elements
@@ -105,6 +108,7 @@ if __name__ == '__main__':
         "current": print_current,
         "cpu": print_cpu,
         "memory": print_memory,
+        "mem_manager": print_memory_manager,
         "mmu": print_mmu,
         "ready": print_ready,
         "io": print_io,
