@@ -515,7 +515,7 @@ class PCBTable:
         string = "\n"
         for pcb in self.elements:
             string = string + str(pcb) + "\n"
-        return "PCB TABLE\nCurrent: {current} \n----------Table---------- {table}" \
+        return "PCB TABLE\nCurrent: {current} \nTable: {table}" \
             .format(current=self.current, table=string)
 
 

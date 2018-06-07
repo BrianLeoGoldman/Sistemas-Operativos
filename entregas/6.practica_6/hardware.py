@@ -149,6 +149,10 @@ class Timer:
             self._counter = self._quantum - 1
             log.logger.info("Timer reset")
 
+    def __repr__(self):
+        return "TIMER\nTimer is on: {status} \nQuantum: {quantum} \nCounter: {counter}" \
+            .format(status=self.is_on, quantum=self.quantum, counter=self.counter)
+
 
 ## emulates the swap memory
 class Swap:

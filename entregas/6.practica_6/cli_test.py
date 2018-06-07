@@ -37,37 +37,27 @@ if __name__ == '__main__':
         HARDWARE.clock.tick(tickNbr)
         tickNbr += 1
 
-
     def do_ticks():
         times = input()
         HARDWARE.clock.do_ticks(int(times))
 
-
     def print_timer():
-        print("Timer is on: " + str(HARDWARE.timer.is_on) +
-              " / Quantum: " + str(HARDWARE.timer.quantum) +
-              " / Counter: " + str(HARDWARE.timer.counter))
-
+        print(HARDWARE.timer)
 
     def print_current():
         print(kernel.get_current())
 
-
     def print_cpu():
         print(HARDWARE.cpu)
-
 
     def print_memory():
         print(HARDWARE.memory)
 
-
     def print_mmu():
         print(HARDWARE.mmu)
 
-
     def print_ready():
         kernel.scheduler.print_ready()
-
 
     def print_io():
         print(kernel.io_device_controller)
@@ -87,20 +77,16 @@ if __name__ == '__main__':
     def print_swap():
         print(HARDWARE.swap)
 
-
     def execute_program():
         name = input()
         kernel.execute(name)
-
 
     def finish_test():
         global running
         running = False
 
-
     def process_input(name):
         processDictionary[name]()
-
 
     # dictionary with all inputs and its effect
     processDictionary = {
