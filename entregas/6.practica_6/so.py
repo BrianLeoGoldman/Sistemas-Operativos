@@ -144,7 +144,6 @@ class AbstractInterruptionHandler:
 
 
 class KillInterruptionHandler(AbstractInterruptionHandler):
-    # TODO: this interruption should release memory (swap included!)
 
     def execute(self, irq):
         log.logger.info(" Program Finished ")
@@ -199,10 +198,10 @@ class TimeOutInterruptionHandler(AbstractInterruptionHandler):
 class PageFaultInterruptionHandler(AbstractInterruptionHandler):
 
     def execute(self, irq):
-        self.kernel.memory_manager.switch_table(self.kernel.dispatcher.get_page_table())
-        frame = self.kernel.memory_manager.next_frame()
         page_number = irq.parameters
         pcb = self.kernel.get_current()
+        self.kernel.memory_manager.switch_table(pcb.pid, self.kernel.dispatcher.get_page_table())
+        frame = self.kernel.memory_manager.next_frame()
         self.kernel.loader.load_page(pcb, page_number, frame)
         self.kernel.memory_manager.update_page_table(pcb.pid, page_number, frame)
         self.kernel.dispatcher.set_page_table(self.kernel.memory_manager.get_table(pcb.pid))
@@ -512,6 +511,13 @@ class PCBTable:
             if pcb.pid == pid:
                 pcb.state = state
 
+    def __repr__(self):
+        string = "\n"
+        for pcb in self.elements:
+            string = string + str(pcb) + "\n"
+        return "PCB TABLE\nCurrent: {current} \n----------Table---------- {table}" \
+            .format(current=self.current, table=string)
+
 
 class PCB:
 
@@ -574,16 +580,23 @@ class Loader:
         return self._frame_size
 
     def load_page(self, pcb, page, frame):
-        program = HARDWARE.disk.getProgram(pcb.name)
+        instructions = HARDWARE.disk.getProgram(pcb.name)
         base_dir_program = page * self.frame_size
         base_dir_memory = frame * self.frame_size
-        program_size = len(program.instructions)
+        program_size = len(instructions)
         counter = 0
         while (counter < self.frame_size) & (base_dir_program < program_size):
-            instruction = program.instructions[base_dir_program]
+            instruction = instructions[base_dir_program]
             HARDWARE.memory.put(base_dir_memory + counter, instruction)
             base_dir_program = base_dir_program + 1
             counter = counter + 1
+
+    def swap_in(self, victim_frame, swap_frame):
+        offset = 0
+        while offset < self.frame_size:
+            instruction = HARDWARE.memory.get(victim_frame * self.frame_size + offset)
+            HARDWARE.swap.put(swap_frame * self.frame_size + offset, instruction)
+            offset = offset + 1
 
     def swap_out(self, frame):
         instruction = HARDWARE.swap.get_frame(frame)
@@ -648,6 +661,7 @@ class MemoryManager:
         self._free_frames = []
         self._used_frames = []
         self._victim_selector = FIFOPageReplacementAlgorithm(self)
+        self.assign_frames()
 
     def assign_frames(self):
         frames_number = self._free_memory / self.frame_size
@@ -690,30 +704,31 @@ class MemoryManager:
     def next_frame(self):
         if len(self.free_frames) > 0:
             frame = self.free_frames.pop(0)
+            self.victim_selector.add_frame(frame)
             self.free_memory = self.free_memory - self.frame_size
             self.used_frames.append(frame)
         else:
             swap_frame = self.kernel.swap_manager.next_frame()
-            victim = self.victim_selector.get_victim()
-            self.kernel.loader.swap_in(victim, swap_frame)
-            self.set_swap_flag(self.owner(victim))
-            self.release_frame(victim)
-            frame = self.free_frames.pop(0)
+            victim_frame = self.victim_selector.get_victim()
+            self.kernel.loader.swap_in(victim_frame, swap_frame) # TODO: i need to set the new swap frame in the table
+            self.set_swap_flag(self.find_frame_owner(victim_frame), victim_frame)
+            self.release_frame(victim_frame)
+            frame = self.next_frame()
         return frame
 
     def create_page_table(self, pid, program_size):
-        pages_number = program_size / self.frame_size + 1
+        pair_div_mod = divmod(program_size, self.frame_size)
+        pages_number = pair_div_mod[0]
+        if pair_div_mod[1] != 0:
+            pages_number += 1
         table = PageTable()
         for page in range(0, int(pages_number)):
             table.add(page, None)
         self.page_table[pid] = table
 
     def find_table(self, pid):
-        res = None
-        for table in self.page_table:
-            if table.pid == pid:
-                res = table.clone()
-        return res
+        table = self.page_table[pid].clone()
+        return table
 
     def switch_table(self, pid, new_table):
         self.page_table[pid] = new_table
@@ -722,60 +737,47 @@ class MemoryManager:
         return self.free_memory >= program_size
 
     def release_space(self, pid):
-        used_frames = self.process_used_frames(pid)
-        self.free_memory = self.free_memory + len(used_frames) * self.frame_size
-        for frame in used_frames:
-            self.used_frames.remove(frame)
-            self.free_frames.append(frame)
+        table = self.find_table(pid)
+        for key, value in table.items():
+            if value[1] & value[0] is not None:
+                self.kernel.swap_manager.release_frame(value[0])
+            if not value[1] & value[0] is not None:
+                self.release_frame(value[0])
 
     def process_used_frames(self, pid):
         page_table = self.find_table(pid)
         final_list = []
-        for row in page_table.page_list:
-            final_list.append(row.frame)
+        for i in range(0, len(page_table.page_list)):
+            page_info = page_table.page_list[i]
+            if page_info[0] is not None:
+                final_list.append(page_info[0])
         return final_list
 
-    def update_page_table(self, pid, page, frame, swap_is_on):
-        for table in self.page_table:
-            if table.pid == pid:
-                table.update(page, frame, swap_is_on)
-
-    def choose_victim(self):
-        victim_frame = self.victim_selector.remove_frame()
-        pid = self.find_frame_owner(victim_frame)
-        swap_frame = self.swap_out(victim_frame)
-        # TODO: update the process page table (the swap flag and the frame number)
+    def update_page_table(self, pid, page, frame):
+        table = self.page_table[pid]
+        table.update(page, frame)
 
     def find_frame_owner(self, frame_number):
         owner = None
-        for table in self.page_table:
-            if table.owns_frame(frame_number):
-                owner = table.pid
+        for key, value in self.page_table.items():
+            if value.owns_frame(frame_number):
+                owner = key
         return owner
-
-    def swap_out(self, frame):
-        # TODO: an object SwapManager is needed!
-        instructions = self.get_frame_instructions(frame)
-        self.release_frame(frame)
-        swap_frame = HARDWARE.swap.put_frame(instructions)
-        return swap_frame
-
-    def get_frame_instructions(self, frame):
-        # TODO: this should be the Loader responsibility
-        instructions = []
-        counter = 0
-        while counter < self.frame_size:
-            instructions.append(HARDWARE.memory.get(self.frame_size * frame + counter))
-            counter = counter + 1
-        return instructions
 
     def release_frame(self, frame):
         self.used_frames.remove(frame)
         self.free_frames.append(frame)
         self.free_memory += self.frame_size
 
+    def get_table(self, pid):
+        return self.page_table[pid]
+
+    def set_swap_flag(self, pid, frame):
+        table = self.page_table[pid]
+        table.set_swap(frame)
+
     def __repr__(self):
-        return "Free frames: {free} \nUsed frames: {used}\nFree memory: {space}\nPage tables: {table}"\
+        return "MEMORY MANAGER\nFree frames: {free} \nUsed frames: {used}\nFree memory: {space}\nPage tables: {table}"\
             .format(free=self.free_frames, used=self.used_frames, space=self.free_memory, table=self.page_table)
 
 
@@ -785,6 +787,7 @@ class SwapManager:
         self._kernel = kernel
         self._frame_size = frame_size
         self._free_frames = []
+        self._used_frames = []
         self.assign_frames()
 
     def assign_frames(self):
@@ -804,20 +807,21 @@ class SwapManager:
     def free_frames(self):
         return self._free_frames
 
-    def next_frame(self):
-        return self.free_frames.pop(0)
+    @property
+    def used_frames(self):
+        return self._used_frames
 
-    # def swap_in(self, frame):
-    #     instructions = []
-    #     HARDWARE.swap.get_frame(frame)
-    #     HARDWARE.swap.delete_frame(frame)  # TODO: should it be done now or in the kill interruption?
-    #     return instructions
-    #
-    # def swap_out(self, frame):
-    #     instructions = self.kernel.loader.get_frame_instructions(frame)
-    #     self.release_frame(frame)
-    #     swap_frame = HARDWARE.swap.put_frame(instructions)
-    #     return swap_frame
+    def next_frame(self):
+        frame = self.free_frames.pop(0)
+        self.used_frames.append(frame)
+        return frame
+
+    def release_frame(self, frame):
+        self.used_frames.remove(frame)
+        self.free_frames.append(frame)
+
+    def __repr__(self):
+        return "SWAP MANAGER\nFree frames: {free} \nUsed frames: {used}".format(free=self.free_frames, used=self.used_frames)
 
 
 class PageReplacementAlgorithm:
@@ -836,11 +840,18 @@ class FIFOPageReplacementAlgorithm(PageReplacementAlgorithm):
         super().__init__(memory_manager)
         self._frames_used = []
 
+    @property
+    def frames_used(self):
+        return self._frames_used
+
     def add_frame(self, frame):
         self._frames_used.append(frame)
 
-    def remove_frame(self):
+    def get_victim(self):
         return self._frames_used.pop(0)
+
+    def __repr__(self):
+        return "FIFO MEMORY ALGORITHM\nFrames: {frames}".format(frames=self.frames_used)
 
 
 class PageTable:
@@ -864,5 +875,32 @@ class PageTable:
         res.page_list = self.page_list
         return res
 
+    def page_is_loaded(self, page_number):
+        page_info = self.page_list[page_number]
+        return page_info[0] is not None
+
+    def update(self, page, frame):
+        page_info = self.page_list[page]
+        page_info[0] = frame
+
+    def find_frame(self, page):
+        page_info = self.page_list[page]
+        return page_info[0]
+
+    def set_swap(self, frame):
+        i = 0
+        for i in self.page_list[i]:
+            page_info = self.page_list[i]
+            if page_info[0] == frame:
+                page_info[1] = True
+            i += 1
+
+    def owns_frame(self, frame_number):
+        res = False
+        for key, value in self.page_list.items():
+            if value[0] == frame_number:
+                res = True
+        return res
+
     def __repr__(self):
-        return "Page Table ---> list: {list}".format(list=self.page_list)
+        return " ---> {list} ".format(list=self.page_list)

@@ -15,7 +15,7 @@ if __name__ == '__main__':
     prg5 = Program("prg5.exe", [ASM.CPU(7)])
 
     # setup our hardware and set memory size to 25 "cells"
-    HARDWARE.setup(25)
+    HARDWARE.setup(4)
     # add programs to hardware hard disk
     HARDWARE.addProgram(prg1)
     HARDWARE.addProgram(prg2)
@@ -75,12 +75,14 @@ if __name__ == '__main__':
     def print_memory_manager():
         print(kernel.memory_manager)
 
+    def print_swap_manager():
+        print(kernel.swap_manager)
+
+    def print_victim_algorithm():
+        print(kernel.memory_manager.victim_selector)
 
     def print_pcb_table():
-        pcb_list = kernel.table.elements
-        print("Current process: " + str(kernel.table.current))
-        for pcb in pcb_list:
-            print(pcb)
+        print(kernel.table)
 
     def print_swap():
         print(HARDWARE.swap)
@@ -109,6 +111,8 @@ if __name__ == '__main__':
         "cpu": print_cpu,
         "memory": print_memory,
         "mem_manager": print_memory_manager,
+        "swap_manager": print_swap_manager,
+        "victim": print_victim_algorithm,
         "mmu": print_mmu,
         "ready": print_ready,
         "io": print_io,

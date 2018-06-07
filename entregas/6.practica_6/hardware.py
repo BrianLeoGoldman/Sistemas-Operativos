@@ -74,9 +74,6 @@ class InterruptVector():
         self._handlers[irq.type].execute(irq)
 
 
-
-
-
 ## emulates the Internal Clock
 class Clock():
 
@@ -161,10 +158,7 @@ class Swap:
         self._cells = [''] * size
         self._size = size
         self._frame_size = frame_size
-        self._empty_frames = []
         frames_number = size / frame_size
-        for index in range(0, int(frames_number)):
-            self._empty_frames.append(index)
 
     @property
     def size(self):
@@ -187,13 +181,8 @@ class Swap:
             self.put(address, instruction)
             address = address + 1
 
-    def next_frame(self):
-        # TODO: the swap should keep a list of used frames
-        return self._empty_frames.pop(0)
-
     def __repr__(self):
-        return "Empty frames ---> {empty_frames}\n{cells}"\
-            .format(empty_frames=self._empty_frames, cells=tabulate(enumerate(self._cells), tablefmt='psql'))
+        return "{cells}".format(cells=tabulate(enumerate(self._cells), tablefmt='psql'))
 
 
 ## emulates the Hard Disk Drive (HDD)
@@ -266,8 +255,7 @@ class MMU():
         if not self.page_table.page_is_loaded(page_number):
             page_fault_IRQ = IRQ(PAGE_FAULT_INTERRUPTION_TYPE, page_number)
             HARDWARE.interruptVector.handle(page_fault_IRQ)
-        row = self.page_table.find_row(page_number)
-        frame_number = row.frame
+        frame_number = self.page_table.find_frame(page_number)
         physical_address = self.frame_size * frame_number + offset
         log.logger.info("Page number:" + str(page_number))
         log.logger.info("Offset: " + str(offset))
