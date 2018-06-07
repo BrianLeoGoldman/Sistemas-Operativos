@@ -18,7 +18,7 @@ if __name__ == '__main__':
 
 
     ## setup our hardware and set memory size to 25 "cells"
-    HARDWARE.setup(25)
+    HARDWARE.setup(25, 16)
     # add programs to hardware hard disk
     HARDWARE.addProgram(prg1)
     HARDWARE.addProgram(prg2)

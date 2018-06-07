@@ -13,15 +13,17 @@ if __name__ == '__main__':
     prg3 = Program("prg3.exe", [ASM.CPU(2), ASM.IO(), ASM.CPU(3)])
     prg4 = Program("prg4.exe", [ASM.CPU(2)])
     prg5 = Program("prg5.exe", [ASM.CPU(7)])
+    prg6 = Program("prg6.exe", [ASM.CPU(1), ASM.IO(), ASM.CPU(1), ASM.IO()])
 
     # setup our hardware and set memory size to 25 "cells"
-    HARDWARE.setup(4)
+    HARDWARE.setup(4, 16)
     # add programs to hardware hard disk
     HARDWARE.addProgram(prg1)
     HARDWARE.addProgram(prg2)
     HARDWARE.addProgram(prg3)
     HARDWARE.addProgram(prg4)
     HARDWARE.addProgram(prg5)
+    HARDWARE.addProgram(prg6)
 
     # new create the Operative System Kernel
     kernel = Kernel(4)

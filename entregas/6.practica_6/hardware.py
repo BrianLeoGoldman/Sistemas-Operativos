@@ -34,7 +34,6 @@ class ASM():
         return INSTRUCTION_IO == instruction
 
 
-
 ##  Estas son la interrupciones soportadas por nuestro Kernel
 KILL_INTERRUPTION_TYPE = "#KILL"
 IO_IN_INTERRUPTION_TYPE = "#IO_IN"
@@ -156,34 +155,19 @@ class Timer:
 
 ## emulates the swap memory
 class Swap:
-    # TODO: add frames and get frames methods
 
-    def __init__(self, size, frame_size):
+    def __init__(self, size):
         self._cells = [''] * size
         self._size = size
-        self._frame_size = frame_size
-        frames_number = size / frame_size
-
     @property
     def size(self):
         return self._size
-
-    @property
-    def frame_size(self):
-        return self._frame_size
 
     def put(self, addr, value):
         self._cells[addr] = value
 
     def get(self, addr):
         return self._cells[addr]
-
-    def put_frame(self, instructions):
-        frame_to_use = self.next_frame()
-        address = frame_to_use * self.frame_size
-        for instruction in instructions:
-            self.put(address, instruction)
-            address = address + 1
 
     def __repr__(self):
         return "{cells}".format(cells=tabulate(enumerate(self._cells), tablefmt='psql'))
@@ -205,6 +189,18 @@ class HDD():
 
     def deleteProgram(self, name):
         del self._memory[name]
+
+    def getPage(self, name, page, frame_size):
+        program = self.getProgram(name)
+        direction = page * frame_size
+        program_size = len(program)
+        counter = 0
+        instructions = []
+        while (direction < program_size) & (counter < frame_size):
+            instructions.append(program[direction])
+            direction += 1
+            counter += 1
+        return instructions
 
 
 ## emulates the main memory (RAM)
@@ -368,16 +364,14 @@ class PrinterIODevice(AbstractIODevice):
         super(PrinterIODevice, self).__init__("Printer", 3)
 
 
-
-
 ## emulates the Hardware that were the Operative System run
 class Hardware():
 
     ## Setup our hardware
-    def setup(self, memorySize):
+    def setup(self, memorySize, swapSize):
         ## add the components to the "motherboard"
-        # TODO: swap size and frame size should come from dependency injection (and size should be frame_size * n)
-        self._swap = Swap(16, 4)
+        # TODO: swap size should come from dependency injection (and size should be frame_size * n)
+        self._swap = Swap(swapSize)
         self._disk = HDD()
         self._memory = Memory(memorySize)
         self._interruptVector = InterruptVector()
@@ -436,7 +430,6 @@ class Hardware():
     @property
     def ioDevice(self):
         return self._ioDevice
-
 
     def __repr__(self):
         return "HARDWARE state {cpu}\n{mem}".format(cpu=self._cpu, mem=self._memory)

@@ -146,12 +146,13 @@ class AbstractInterruptionHandler:
 class KillInterruptionHandler(AbstractInterruptionHandler):
 
     def execute(self, irq):
-        log.logger.info(" Program Finished ")
+        log.logger.info("Program Finished ")
         pcb = self.kernel.scheduler.current
         self.kernel.change_state(pcb, "Terminated")
         self.kernel.terminate()
         self.kernel.dispatcher.save(pcb)
         self.kernel.memory_manager.release_space(pcb.pid)
+        # TODO: when the process ends I should update the page table or leave it with trash?
         self.context_switch()
 
 
@@ -295,7 +296,7 @@ class Kernel:
         program = Program(program_name, instructions)
         new_irq = IRQ(NEW_INTERRUPTION_TYPE, program)
         HARDWARE.interruptVector.handle(new_irq)
-        log.logger.info("\n Executing program: {name}".format(name=program_name))
+        log.logger.info("\nExecuting program: {name}".format(name=program_name))
         self.dispatcher.start()
 
     def has_finished(self):
@@ -580,16 +581,20 @@ class Loader:
         return self._frame_size
 
     def load_page(self, pcb, page, frame):
-        instructions = HARDWARE.disk.getProgram(pcb.name)
-        base_dir_program = page * self.frame_size
+        log.logger.info("Loading page")
+        if self.kernel.memory_manager.page_is_in_swap(pcb.pid, page):
+            log.logger.info("Its in swap")
+            swap_frame = self.kernel.memory_manager.get_current_frame(pcb.pid, page)
+            instructions = self.swap_out(swap_frame)
+            self.kernel.swap_manager.release_frame(swap_frame)
+            self.kernel.memory_manager.set_swap_flag(pcb.pid, swap_frame, False)
+        else:
+            log.logger.info("Its in disk")
+            instructions = HARDWARE.disk.getPage(pcb.name, page, self.frame_size)
         base_dir_memory = frame * self.frame_size
-        program_size = len(instructions)
-        counter = 0
-        while (counter < self.frame_size) & (base_dir_program < program_size):
-            instruction = instructions[base_dir_program]
-            HARDWARE.memory.put(base_dir_memory + counter, instruction)
-            base_dir_program = base_dir_program + 1
-            counter = counter + 1
+        for instruction in instructions:
+            HARDWARE.memory.put(base_dir_memory, instruction)
+            base_dir_memory += 1
 
     def swap_in(self, victim_frame, swap_frame):
         offset = 0
@@ -599,7 +604,14 @@ class Loader:
             offset = offset + 1
 
     def swap_out(self, frame):
-        instruction = HARDWARE.swap.get_frame(frame)
+        instructions = []
+        base_dir = frame * self.frame_size
+        counter = 0
+        while counter < self.frame_size:
+            instructions.append(HARDWARE.swap.get(base_dir))
+            counter += 1
+            base_dir += 1
+        return instructions
 
     def update_page_table(self, pid, page, frame, swap_is_on):
         self.kernel.memory_manager.update_page_table(pid, page, frame, swap_is_on)
@@ -644,10 +656,12 @@ class Dispatcher:
             self.load(pcb)
             self._kernel.change_state(pcb, "Running")
 
-    def get_page_table(self):
+    @staticmethod
+    def get_page_table():
         return HARDWARE.mmu.page_table
 
-    def set_page_table(self, new_table):
+    @staticmethod
+    def set_page_table(new_table):
         HARDWARE.mmu.page_table = new_table
 
 
@@ -710,8 +724,9 @@ class MemoryManager:
         else:
             swap_frame = self.kernel.swap_manager.next_frame()
             victim_frame = self.victim_selector.get_victim()
-            self.kernel.loader.swap_in(victim_frame, swap_frame) # TODO: i need to set the new swap frame in the table
-            self.set_swap_flag(self.find_frame_owner(victim_frame), victim_frame)
+            self.kernel.loader.swap_in(victim_frame, swap_frame)
+            self.set_swap_flag(self.find_frame_owner(victim_frame), victim_frame, True)
+            self.find_table(self.find_frame_owner(victim_frame)).set_new_frame(victim_frame, swap_frame)
             self.release_frame(victim_frame)
             frame = self.next_frame()
         return frame
@@ -738,20 +753,11 @@ class MemoryManager:
 
     def release_space(self, pid):
         table = self.find_table(pid)
-        for key, value in table.items():
-            if value[1] & value[0] is not None:
-                self.kernel.swap_manager.release_frame(value[0])
-            if not value[1] & value[0] is not None:
+        for key, value in table.page_list.items():
+            if not value[1]:
                 self.release_frame(value[0])
-
-    def process_used_frames(self, pid):
-        page_table = self.find_table(pid)
-        final_list = []
-        for i in range(0, len(page_table.page_list)):
-            page_info = page_table.page_list[i]
-            if page_info[0] is not None:
-                final_list.append(page_info[0])
-        return final_list
+            else:
+                self.kernel.swap_manager.release_frame(value[0])
 
     def update_page_table(self, pid, page, frame):
         table = self.page_table[pid]
@@ -772,9 +778,19 @@ class MemoryManager:
     def get_table(self, pid):
         return self.page_table[pid]
 
-    def set_swap_flag(self, pid, frame):
+    def set_swap_flag(self, pid, frame, boolean):
         table = self.page_table[pid]
-        table.set_swap(frame)
+        table.set_swap(frame, boolean)
+
+    def page_is_in_swap(self, pid, page):
+        table = self.page_table[pid]
+        page_info = table.page_list[page]
+        return page_info[1]
+
+    def get_current_frame(self, pid, page):
+        table = self.find_table(pid)
+        page_info = table.page_list[page]
+        return page_info[0]
 
     def __repr__(self):
         return "MEMORY MANAGER\nFree frames: {free} \nUsed frames: {used}\nFree memory: {space}\nPage tables: {table}"\
@@ -821,7 +837,8 @@ class SwapManager:
         self.free_frames.append(frame)
 
     def __repr__(self):
-        return "SWAP MANAGER\nFree frames: {free} \nUsed frames: {used}".format(free=self.free_frames, used=self.used_frames)
+        return "SWAP MANAGER\nFree frames: {free} \nUsed frames: {used}"\
+            .format(free=self.free_frames, used=self.used_frames)
 
 
 class PageReplacementAlgorithm:
@@ -877,7 +894,7 @@ class PageTable:
 
     def page_is_loaded(self, page_number):
         page_info = self.page_list[page_number]
-        return page_info[0] is not None
+        return (page_info[0] is not None) & (not page_info[1])
 
     def update(self, page, frame):
         page_info = self.page_list[page]
@@ -887,13 +904,10 @@ class PageTable:
         page_info = self.page_list[page]
         return page_info[0]
 
-    def set_swap(self, frame):
-        i = 0
-        for i in self.page_list[i]:
-            page_info = self.page_list[i]
-            if page_info[0] == frame:
-                page_info[1] = True
-            i += 1
+    def set_swap(self, frame, boolean):
+        for key, value in self.page_list.items():
+            if value[0] == frame:
+                value[1] = boolean
 
     def owns_frame(self, frame_number):
         res = False
@@ -901,6 +915,14 @@ class PageTable:
             if value[0] == frame_number:
                 res = True
         return res
+
+    def set_new_frame(self, old_frame, new_frame):
+        i = 0
+        for i in self.page_list[i]:
+            page_info = self.page_list[i]
+            if page_info[0] == old_frame & page_info[1]:
+                page_info[0] = new_frame
+            i += 1
 
     def __repr__(self):
         return " ---> {list} ".format(list=self.page_list)
