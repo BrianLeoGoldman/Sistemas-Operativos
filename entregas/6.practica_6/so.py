@@ -152,7 +152,6 @@ class KillInterruptionHandler(AbstractInterruptionHandler):
         self.kernel.terminate()
         self.kernel.dispatcher.save(pcb)
         self.kernel.memory_manager.release_space(pcb.pid)
-        # TODO: when the process ends I should update the page table or leave it with trash?
         self.context_switch()
 
 
@@ -203,6 +202,7 @@ class PageFaultInterruptionHandler(AbstractInterruptionHandler):
         pcb = self.kernel.get_current()
         self.kernel.memory_manager.switch_table(pcb.pid, self.kernel.dispatcher.get_page_table())
         frame = self.kernel.memory_manager.next_frame()
+        self.kernel.memory_manager.add_possible_victim(frame, page_number, pcb.pid)
         self.kernel.loader.load_page(pcb, page_number, frame)
         self.kernel.memory_manager.update_page_table(pcb.pid, page_number, frame)
         self.kernel.dispatcher.set_page_table(self.kernel.memory_manager.get_table(pcb.pid))
@@ -664,6 +664,10 @@ class Dispatcher:
     def set_page_table(new_table):
         HARDWARE.mmu.page_table = new_table
 
+    @staticmethod
+    def get_clock_tick():
+        return HARDWARE.clock.tickNbr
+
 
 class MemoryManager:
 
@@ -718,15 +722,17 @@ class MemoryManager:
     def next_frame(self):
         if len(self.free_frames) > 0:
             frame = self.free_frames.pop(0)
-            self.victim_selector.add_frame(frame)
+            # self.victim_selector.add_frame(frame)
             self.free_memory = self.free_memory - self.frame_size
             self.used_frames.append(frame)
         else:
             swap_frame = self.kernel.swap_manager.next_frame()
             victim_frame = self.victim_selector.get_victim()
             self.kernel.loader.swap_in(victim_frame, swap_frame)
-            self.set_swap_flag(self.find_frame_owner(victim_frame), victim_frame, True)
-            self.find_table(self.find_frame_owner(victim_frame)).set_new_frame(victim_frame, swap_frame)
+            owner = self.find_frame_owner(victim_frame)
+            table = self.find_table(owner)
+            table.set_swap(victim_frame, True)
+            table.set_new_frame(victim_frame, swap_frame)
             self.release_frame(victim_frame)
             frame = self.next_frame()
         return frame
@@ -758,6 +764,7 @@ class MemoryManager:
                 self.release_frame(value[0])
             else:
                 self.kernel.swap_manager.release_frame(value[0])
+        table.reset()
 
     def update_page_table(self, pid, page, frame):
         table = self.page_table[pid]
@@ -771,9 +778,10 @@ class MemoryManager:
         return owner
 
     def release_frame(self, frame):
-        self.used_frames.remove(frame)
-        self.free_frames.append(frame)
-        self.free_memory += self.frame_size
+        if frame in self.used_frames:
+            self.used_frames.remove(frame)
+            self.free_frames.append(frame)
+            self.free_memory += self.frame_size
 
     def get_table(self, pid):
         return self.page_table[pid]
@@ -792,9 +800,23 @@ class MemoryManager:
         page_info = table.page_list[page]
         return page_info[0]
 
+    def add_possible_victim(self, frame, page, pid):
+        page_info = self.update_table_flags(pid, page)
+        self.victim_selector.add_frame(frame, page_info)
+
+    def update_table_flags(self, pid, page):
+        table = self.find_table(pid)
+        page_info = table.page_list[page]
+        page_info[2] = self.kernel.dispatcher.get_clock_tick()
+        page_info[3] = 1
+        return page_info
+
     def __repr__(self):
+        string = ""
+        for key, value in self.page_table.items():
+            string = string + "\n" + "PID " + str(key) + " ---> " + str(value)
         return "MEMORY MANAGER\nFree frames: {free} \nUsed frames: {used}\nFree memory: {space}\nPage tables: {table}"\
-            .format(free=self.free_frames, used=self.used_frames, space=self.free_memory, table=self.page_table)
+            .format(free=self.free_frames, used=self.used_frames, space=self.free_memory, table=string)
 
 
 class SwapManager:
@@ -861,7 +883,7 @@ class FIFOPageReplacementAlgorithm(PageReplacementAlgorithm):
     def frames_used(self):
         return self._frames_used
 
-    def add_frame(self, frame):
+    def add_frame(self, frame, page_info):
         self._frames_used.append(frame)
 
     def get_victim(self):
@@ -869,6 +891,49 @@ class FIFOPageReplacementAlgorithm(PageReplacementAlgorithm):
 
     def __repr__(self):
         return "FIFO MEMORY ALGORITHM\nFrames: {frames}".format(frames=self.frames_used)
+
+
+class LRUPageReplacementAlgorithm(PageReplacementAlgorithm):
+
+    def __init__(self, memory_manager):
+        super().__init__(memory_manager)
+        self._frames_used = {}
+
+    @property
+    def frames_used(self):
+        return self._frames_used
+
+    def add_frame(self, frame, page_info):
+        self.frames_used[frame] = page_info
+
+    def get_victim(self):
+        victim = None
+        minimum = None
+        for key, value in self.frames_used.items():
+            if minimum is None | value[2] < minimum:
+                minimum = value[2]
+                victim = key
+        # TODO: check this!!! I have to take the chosen victim out!!!
+        # self.frames_used.pop(victim)
+        return victim
+
+    def __repr__(self):
+        return "LRU MEMORY ALGORITHM"
+
+
+class SecondChanceReplacementAlgorithm(PageReplacementAlgorithm):
+
+    def __init__(self, memory_manager):
+        super().__init__(memory_manager)
+
+    def add_frame(self, frame):
+        pass
+
+    def get_victim(self):
+        pass
+
+    def __repr__(self):
+        return "SECOND CHANCE MEMORY ALGORITHM"
 
 
 class PageTable:
@@ -885,7 +950,7 @@ class PageTable:
         self._page_list = new_list
 
     def add(self, page, frame):
-        self._page_list[page] = [frame, False]
+        self._page_list[page] = [frame, False, None, None]
 
     def clone(self):
         res = PageTable()
@@ -912,17 +977,24 @@ class PageTable:
     def owns_frame(self, frame_number):
         res = False
         for key, value in self.page_list.items():
-            if value[0] == frame_number:
+            if value[0] == frame_number & (not value[1]):
                 res = True
         return res
 
     def set_new_frame(self, old_frame, new_frame):
-        i = 0
-        for i in self.page_list[i]:
-            page_info = self.page_list[i]
-            if page_info[0] == old_frame & page_info[1]:
-                page_info[0] = new_frame
-            i += 1
+        for key, value in self.page_list.items():
+            if value[0] == old_frame & value[1]:
+                value[0] = new_frame
+
+    def reset(self):
+        for key, value in self.page_list.items():
+            value[0] = None
+            value[1] = False
+            value[2] = None
+            value[3] = None
 
     def __repr__(self):
-        return " ---> {list} ".format(list=self.page_list)
+        string = ""
+        for key, value in self.page_list.items():
+            string = string + "   " + "Page " + str(key) + ": " + str(value)
+        return "{list} ".format(list=string)

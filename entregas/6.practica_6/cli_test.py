@@ -35,9 +35,7 @@ if __name__ == '__main__':
     # Test command line interface
 
     def tick():
-        global tickNbr
-        HARDWARE.clock.tick(tickNbr)
-        tickNbr += 1
+        HARDWARE.clock.tick()
 
     def do_ticks():
         times = input()
