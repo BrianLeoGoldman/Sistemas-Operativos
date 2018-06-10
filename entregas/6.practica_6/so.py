@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import sys
 
 from hardware import *
 import log
@@ -678,7 +679,7 @@ class MemoryManager:
         self._page_table = {}
         self._free_frames = []
         self._used_frames = []
-        self._victim_selector = FIFOPageReplacementAlgorithm(self)
+        self._victim_selector = LRUPageReplacementAlgorithm(self)
         self.assign_frames()
 
     def assign_frames(self):
@@ -850,7 +851,12 @@ class SwapManager:
         return self._used_frames
 
     def next_frame(self):
-        frame = self.free_frames.pop(0)
+        frame = None
+        try:
+            frame = self.free_frames.pop(0)
+        except IndexError:
+            log.logger.info("ERROR: there are no empty frames in swap")
+            sys.exit("SYSTEM SHUTTING DOWN...")
         self.used_frames.append(frame)
         return frame
 
@@ -907,18 +913,19 @@ class LRUPageReplacementAlgorithm(PageReplacementAlgorithm):
         self.frames_used[frame] = page_info
 
     def get_victim(self):
-        victim = None
-        minimum = None
+        first_key = list(self.frames_used.keys())[0]
+        first_frame_info = self.frames_used[0]
+        victim = first_key
+        minimum = first_frame_info[2]
         for key, value in self.frames_used.items():
-            if minimum is None | value[2] < minimum:
+            if value[2] < minimum:
                 minimum = value[2]
                 victim = key
-        # TODO: check this!!! I have to take the chosen victim out!!!
-        # self.frames_used.pop(victim)
+        del self.frames_used[victim]
         return victim
 
     def __repr__(self):
-        return "LRU MEMORY ALGORITHM"
+        return "LRU MEMORY ALGORITHM\n{frames}".format(frames=self.frames_used)
 
 
 class SecondChanceReplacementAlgorithm(PageReplacementAlgorithm):

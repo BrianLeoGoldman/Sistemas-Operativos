@@ -8,24 +8,25 @@ if __name__ == '__main__':
     log.setup_logger()
     log.logger.info('Starting emulator')
 
-    prg1 = Program("prg1.exe", [ASM.CPU(2), ASM.IO(), ASM.CPU(1)])
-    prg2 = Program("prg2.exe", [ASM.CPU(2), ASM.IO(), ASM.CPU(2)])
-    prg3 = Program("prg3.exe", [ASM.CPU(2), ASM.IO(), ASM.CPU(3)])
-    prg4 = Program("prg4.exe", [ASM.CPU(2)])
-    prg5 = Program("prg5.exe", [ASM.CPU(7)])
-    prg6 = Program("prg6.exe", [ASM.CPU(1), ASM.IO(), ASM.CPU(1), ASM.IO()])
+    prg1 = Program("prg1.exe", [ASM.CPU(3), ASM.IO(), ASM.CPU(3), ASM.IO(), ASM.CPU(3)])
+    prg2 = Program("prg2.exe", [ASM.CPU(2), ASM.IO(), ASM.CPU(1), ASM.CPU(2), ASM.IO(),
+                                ASM.CPU(1), ASM.CPU(2), ASM.IO()])
+    prg3 = Program("prg3.exe", [ASM.CPU(1), ASM.IO(), ASM.CPU(2), ASM.CPU(1), ASM.IO(),
+                                ASM.CPU(2), ASM.CPU(1), ASM.IO(), ASM.CPU(1)])
+    prg4 = Program("prg4.exe", [ASM.CPU(1), ASM.IO(), ASM.CPU(1), ASM.IO(), ASM.CPU(1),
+                                ASM.IO(), ASM.CPU(1), ASM.IO(), ASM.CPU(1), ASM.IO(), ASM.CPU(1)])
+    prg5 = Program("prg5.exe", [ASM.CPU(11)])
 
-    # setup our hardware and set memory size to 25 "cells"
-    HARDWARE.setup(4, 16)
+    # setup our hardware with memory size and swap size
+    HARDWARE.setup(8, 4)
     # add programs to hardware hard disk
     HARDWARE.addProgram(prg1)
     HARDWARE.addProgram(prg2)
     HARDWARE.addProgram(prg3)
     HARDWARE.addProgram(prg4)
     HARDWARE.addProgram(prg5)
-    HARDWARE.addProgram(prg6)
 
-    # new create the Operative System Kernel
+    # new create the Operative System Kernel and set the frame size
     kernel = Kernel(4)
     # variable used to count the tick number
     tickNbr = 0
