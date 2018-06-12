@@ -679,7 +679,7 @@ class MemoryManager:
         self._page_table = {}
         self._free_frames = []
         self._used_frames = []
-        self._victim_selector = LRUPageReplacementAlgorithm(self)
+        self._victim_selector = SecondChanceReplacementAlgorithm(self)
         self.assign_frames()
 
     def assign_frames(self):
@@ -932,15 +932,43 @@ class SecondChanceReplacementAlgorithm(PageReplacementAlgorithm):
 
     def __init__(self, memory_manager):
         super().__init__(memory_manager)
+        self._frames_used = []
 
-    def add_frame(self, frame):
-        pass
+    @property
+    def frames_used(self):
+        return self._frames_used
+
+    def add_frame(self, frame, page_info):
+        self.frames_used.append((frame, page_info))
 
     def get_victim(self):
-        pass
+        victim = None
+        victimChosen = False
+        log.logger.info("El metodo recien empieza")
+        log.logger.info("La lista esta: " + str(self.frames_used))
+        while not victimChosen:
+            pair = self.frames_used.pop(0)
+            page_info = pair[1]
+            log.logger.info("Analizando " + str(pair))
+            if (not victimChosen) & (page_info[3] == 0):
+                log.logger.info("Encontre una victima")
+                victim = pair[0]
+                victimChosen = True
+                page_info[3] = 1
+                log.logger.info("victimChosen quedo en " + str(victimChosen))
+                log.logger.info("La lista quedo " + str(self.frames_used))
+            if (not victimChosen) & (page_info[3] == 1):
+                log.logger.info("Este no es una victima")
+                page_info[3] = 0
+                self.frames_used.append(pair)
+                log.logger.info("La lista quedo " + str(self.frames_used))
+            log.logger.info("Pasando al siguiente elemento de la lista")
+        log.logger.info("El metodo termino, la victima elegida es " + str(victim))
+        log.logger.info("La lista quedo " + str(self.frames_used))
+        return victim
 
     def __repr__(self):
-        return "SECOND CHANCE MEMORY ALGORITHM"
+        return "SECOND CHANCE MEMORY ALGORITHM\n{frames}".format(frames=self.frames_used)
 
 
 class PageTable:
