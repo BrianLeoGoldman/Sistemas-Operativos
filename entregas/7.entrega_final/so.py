@@ -182,7 +182,7 @@ class NewInterruptionHandler(AbstractInterruptionHandler):
     def execute(self, irq):
         program = irq.parameters
         pcb = self.kernel.table.create_pcb(program.name)
-        self.kernel.memory_manager.create_page_table(pcb.pid, len(program.instructions))
+        self.kernel.memory_manager.create_page_table(pcb.pid, len(program.instructions), program)
         self.get_ready(pcb)
 
 
@@ -234,7 +234,7 @@ class Kernel:
 
         # controls the Hardware's I/O Device
         self._io_device_controller = IoDeviceController(self, HARDWARE.ioDevice)
-        self._memory_manager = MemoryManager(self, frame_size, HARDWARE.memory.size)
+        self._memory_manager = MemoryManagerPaginationOnDemand(self, frame_size, HARDWARE.memory.size)
         self._swap_manager = SwapManager(self, frame_size)
         self._loader = Loader(self)
         self._dispatcher = Dispatcher(self)
@@ -654,17 +654,8 @@ class MemoryManager:
         self._kernel = kernel
         self._frame_size = frame_size
         self._free_memory = memory_size
-        self._page_table = {}
         self._free_frames = []
         self._used_frames = []
-        self._victim_selector = SecondChanceReplacementAlgorithm(self)
-        self.assign_frames()
-
-    def assign_frames(self):
-        frames_number = self._free_memory / self.frame_size
-        for index in range(0, int(frames_number)):
-            self._free_frames.append(index)
-        HARDWARE.mmu.frame_size = self.frame_size
 
     @property
     def kernel(self):
@@ -683,16 +674,99 @@ class MemoryManager:
         self._free_memory = value
 
     @property
-    def page_table(self):
-        return self._page_table
-
-    @property
     def free_frames(self):
         return self._free_frames
 
     @property
     def used_frames(self):
         return self._used_frames
+
+    def assign_frames(self):
+        frames_number = self._free_memory / self.frame_size
+        for index in range(0, int(frames_number)):
+            self._free_frames.append(index)
+        HARDWARE.mmu.frame_size = self.frame_size
+
+
+class MemoryManagerPagination(MemoryManager):
+
+    def __init__(self, kernel, frame_size, memory_size):
+        super().__init__(kernel, frame_size, memory_size)
+        self._page_table = {}
+        self.assign_frames()
+
+    @property
+    def page_table(self):
+        return self._page_table
+
+    def next_frame(self):
+        frame = self.free_frames.pop(0)
+        self.free_memory = self.free_memory - self.frame_size
+        self.used_frames.append(frame)
+        return frame
+
+    def find_table(self, pid):
+        table = self.page_table[pid]
+        res = table.clone()
+        return res
+
+    def has_enough_space(self, program_size):
+        return self.free_memory >= program_size
+
+    def release_space(self, pid):
+        used_frames = self.process_used_frames(pid)
+        self.free_memory = self.free_memory + len(used_frames) * self.frame_size
+        for frame in used_frames:
+            self.used_frames.remove(frame)
+            self.free_frames.append(frame)
+
+    def process_used_frames(self, pid):
+        page_table = self.find_table(pid)
+        final_list = []
+        for pair in page_table.page_list:
+            final_list.append(pair[1])
+        return final_list
+
+    def create_page_table(self, pid, prog_length, program):
+        if self.has_enough_space(prog_length):
+            # Creation of the page table
+            pages_number = prog_length / self.frame_size + 1
+            table = PageTable()
+            for page in range(0, int(pages_number)):
+                table.add(page, self.next_frame())
+            self.page_table[pid] = table
+            #Loading all pages
+            for page_tuple in table.page_list:
+                self.load_page(program, page_tuple[0], page_tuple[1])
+        else:
+            log.logger.info("The amount of empty space is insufficient to load this program")
+            raise SystemExit
+
+    def load_page(self, program, page, frame):
+        log.logger.info("Loading Page " + str(page) + " in Frame " + str(frame))
+        base_dir_program = page * self.frame_size
+        base_dir_memory = frame * self.frame_size
+        prog_size = len(program.instructions)
+        counter = 0
+        while (counter < self.frame_size) & (base_dir_program < prog_size):
+            instruction = program.instructions[base_dir_program]
+            HARDWARE.memory.put(base_dir_memory + counter, instruction)
+            base_dir_program = base_dir_program + 1
+            counter = counter + 1
+        log.logger.info("Page " + str(page) + " loaded successfully")
+
+
+class MemoryManagerPaginationOnDemand(MemoryManager):
+
+    def __init__(self, kernel, frame_size, memory_size):
+        super().__init__(kernel, frame_size, memory_size)
+        self._page_table = {}
+        self._victim_selector = SecondChanceReplacementAlgorithm(self)
+        self.assign_frames()
+
+    @property
+    def page_table(self):
+        return self._page_table
 
     @property
     def victim_selector(self):
@@ -716,7 +790,7 @@ class MemoryManager:
             frame = self.next_frame()
         return frame
 
-    def create_page_table(self, pid, program_size):
+    def create_page_table(self, pid, program_size, program):
         pair_div_mod = divmod(program_size, self.frame_size)
         pages_number = pair_div_mod[0]
         if pair_div_mod[1] != 0:
