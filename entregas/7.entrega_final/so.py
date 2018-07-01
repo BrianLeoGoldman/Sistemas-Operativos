@@ -449,28 +449,6 @@ class Priority(SchedulingAlgorithm):
             print(self._queue[i])
 
 
-class ShortestJobFirst(SchedulingAlgorithm):
-    # The process with the shortest CPU burst is allowed to run
-    # Non-preemptive
-    # Preemptive
-
-    def __init__(self, kernel):
-        super().__init__(kernel)
-        self._queue = []
-
-    def add(self, pcb):
-        pass
-
-    def next(self):
-        pass
-
-    def has_next(self):
-        pass
-
-    def print_ready(self):
-        pass
-
-
 class PCBTable:
 
     def __init__(self, size):
