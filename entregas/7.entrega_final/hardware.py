@@ -267,7 +267,8 @@ class MMUPagination(MMU):
         pair_div_mod = divmod(logical_address, self.frame_size)
         page_number = pair_div_mod[0]
         offset = pair_div_mod[1]
-        frame_number = self.page_table.find_tuple(page_number)[1]
+        log.logger.info(self.page_table)
+        frame_number = self.page_table.page_list[page_number][0]
         physical_address = self.frame_size * frame_number + offset
         log.logger.info("Page number:" + str(page_number))
         log.logger.info("Offset: " + str(offset))
@@ -414,7 +415,7 @@ class Hardware():
         self._clock = Clock()
         self._timer = Timer(self._interruptVector)
         self._ioDevice = PrinterIODevice()
-        self._mmu = MMUPaginationOnDemand(self._memory)
+        self._mmu = MMUPagination(self._memory)  # TODO: change for MMUPaginationOnDemand
         self._cpu = Cpu(self._mmu, self._interruptVector)
         self._clock.addSubscriber(self._timer)
         self._clock.addSubscriber(self._ioDevice)

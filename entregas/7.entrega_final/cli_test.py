@@ -16,15 +16,19 @@ if __name__ == '__main__':
     prg4 = Program("prg4.exe", [ASM.CPU(1), ASM.IO(), ASM.CPU(1), ASM.IO(), ASM.CPU(1),
                                 ASM.IO(), ASM.CPU(1), ASM.IO(), ASM.CPU(1), ASM.IO(), ASM.CPU(1)])
     prg5 = Program("prg5.exe", [ASM.CPU(11)])
+    prg6 = Program("prg6.exe", [ASM.CPU(1), ASM.IO(), ASM.CPU(1)])
+    prg7 = Program("prg7.exe", [ASM.CPU(3)])
 
     # setup our hardware with memory size and swap size
-    HARDWARE.setup(8, 4)
+    HARDWARE.setup(20, 4)
     # add programs to hardware hard disk
     HARDWARE.addProgram(prg1)
     HARDWARE.addProgram(prg2)
     HARDWARE.addProgram(prg3)
     HARDWARE.addProgram(prg4)
     HARDWARE.addProgram(prg5)
+    HARDWARE.addProgram(prg6)
+    HARDWARE.addProgram(prg7)
 
     # new create the Operative System Kernel and set the frame size
     kernel = Kernel(4)

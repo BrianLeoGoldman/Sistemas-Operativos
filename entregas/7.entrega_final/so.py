@@ -182,7 +182,7 @@ class NewInterruptionHandler(AbstractInterruptionHandler):
     def execute(self, irq):
         program = irq.parameters
         pcb = self.kernel.table.create_pcb(program.name)
-        self.kernel.memory_manager.create_page_table(pcb.pid, len(program.instructions), program)
+        self.kernel.memory_manager.create_page_table(pcb, program)
         self.get_ready(pcb)
 
 
@@ -234,7 +234,7 @@ class Kernel:
 
         # controls the Hardware's I/O Device
         self._io_device_controller = IoDeviceController(self, HARDWARE.ioDevice)
-        self._memory_manager = MemoryManagerPaginationOnDemand(self, frame_size, HARDWARE.memory.size)
+        self._memory_manager = MemoryManagerPagination(self, frame_size, HARDWARE.memory.size) #TODO: change for MemoryManagerPaginationOnDemand
         self._swap_manager = SwapManager(self, frame_size)
         self._loader = Loader(self)
         self._dispatcher = Dispatcher(self)
@@ -242,7 +242,6 @@ class Kernel:
         self._scheduler = FirstComeFirstServed(self)
         # self._scheduler = RoundRobin(self, 4)
         # self._scheduler = Priority(self, True)
-        # self._scheduler = ShortestJobFirst(self)
 
     @property
     def memory_manager(self):
@@ -652,6 +651,7 @@ class MemoryManager:
 
     def __init__(self, kernel, frame_size, memory_size):
         self._kernel = kernel
+        self._page_table = {}
         self._frame_size = frame_size
         self._free_memory = memory_size
         self._free_frames = []
@@ -660,6 +660,10 @@ class MemoryManager:
     @property
     def kernel(self):
         return self._kernel
+
+    @property
+    def page_table(self):
+        return self._page_table
 
     @property
     def frame_size(self):
@@ -692,12 +696,7 @@ class MemoryManagerPagination(MemoryManager):
 
     def __init__(self, kernel, frame_size, memory_size):
         super().__init__(kernel, frame_size, memory_size)
-        self._page_table = {}
         self.assign_frames()
-
-    @property
-    def page_table(self):
-        return self._page_table
 
     def next_frame(self):
         frame = self.free_frames.pop(0)
@@ -723,50 +722,46 @@ class MemoryManagerPagination(MemoryManager):
     def process_used_frames(self, pid):
         page_table = self.find_table(pid)
         final_list = []
-        for pair in page_table.page_list:
-            final_list.append(pair[1])
+        for key, value in page_table.page_list.items():
+            final_list.append(value[0])
         return final_list
 
-    def create_page_table(self, pid, prog_length, program):
-        if self.has_enough_space(prog_length):
-            # Creation of the page table
-            pages_number = prog_length / self.frame_size + 1
+    def create_page_table(self, pcb, program):
+        program_length = len(program.instructions)
+        if self.has_enough_space(program_length):
+            pair_div_mod = divmod(program_length, self.frame_size)
+            pages_number = pair_div_mod[0]
+            log.logger.info("Number of pages:" + str(pages_number))
             table = PageTable()
             for page in range(0, int(pages_number)):
                 table.add(page, self.next_frame())
-            self.page_table[pid] = table
-            #Loading all pages
-            for page_tuple in table.page_list:
-                self.load_page(program, page_tuple[0], page_tuple[1])
+            self.page_table[pcb.pid] = table
+            self.load_all_pages(table, pcb)
         else:
             log.logger.info("The amount of empty space is insufficient to load this program")
             raise SystemExit
 
-    def load_page(self, program, page, frame):
-        log.logger.info("Loading Page " + str(page) + " in Frame " + str(frame))
-        base_dir_program = page * self.frame_size
-        base_dir_memory = frame * self.frame_size
-        prog_size = len(program.instructions)
-        counter = 0
-        while (counter < self.frame_size) & (base_dir_program < prog_size):
-            instruction = program.instructions[base_dir_program]
-            HARDWARE.memory.put(base_dir_memory + counter, instruction)
-            base_dir_program = base_dir_program + 1
-            counter = counter + 1
-        log.logger.info("Page " + str(page) + " loaded successfully")
+    def load_all_pages(self, table, pcb):
+        for key, value in table.page_list.items():
+            self.kernel.loader.load_page(pcb, key, value[0])
+
+    def page_is_in_swap(self, pid, page):
+        return False
+
+    def __repr__(self):
+        string = ""
+        for key, value in self.page_table.items():
+            string = string + "\n" + "PID " + str(key) + " ---> " + str(value)
+        return "MEMORY MANAGER\nFree frames: {free} \nUsed frames: {used}\nFree memory: {space}\nPage tables: {table}"\
+            .format(free=self.free_frames, used=self.used_frames, space=self.free_memory, table=string)
 
 
 class MemoryManagerPaginationOnDemand(MemoryManager):
 
     def __init__(self, kernel, frame_size, memory_size):
         super().__init__(kernel, frame_size, memory_size)
-        self._page_table = {}
         self._victim_selector = SecondChanceReplacementAlgorithm(self)
         self.assign_frames()
-
-    @property
-    def page_table(self):
-        return self._page_table
 
     @property
     def victim_selector(self):
@@ -790,7 +785,8 @@ class MemoryManagerPaginationOnDemand(MemoryManager):
             frame = self.next_frame()
         return frame
 
-    def create_page_table(self, pid, program_size, program):
+    def create_page_table(self, pcb, program):
+        program_size = len(program.instructions)
         pair_div_mod = divmod(program_size, self.frame_size)
         pages_number = pair_div_mod[0]
         if pair_div_mod[1] != 0:
@@ -798,7 +794,7 @@ class MemoryManagerPaginationOnDemand(MemoryManager):
         table = PageTable()
         for page in range(0, int(pages_number)):
             table.add(page, None)
-        self.page_table[pid] = table
+        self.page_table[pcb.pid] = table
 
     def find_table(self, pid):
         table = self.page_table[pid].clone()
