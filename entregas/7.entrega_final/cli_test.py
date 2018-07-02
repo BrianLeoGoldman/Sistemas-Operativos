@@ -1,3 +1,4 @@
+from gantt_chart import GanttChartCalculator
 from so import *
 import log
 
@@ -8,8 +9,11 @@ if __name__ == '__main__':
     log.setup_logger()
     log.logger.info('Starting emulator')
 
-    # new create the Operative System Kernel and set the frame size
+    # new create the Operative System Kernel and set the frame size and memory factor
     kernel = Kernel(4, 3)
+
+    # set up the gantt chart calculator
+    gantt = GanttChartCalculator(kernel)
 
     prg1 = Program("prg1.exe", [ASM.CPU(3), ASM.IO(), ASM.CPU(3), ASM.IO(), ASM.CPU(3)])
     prg2 = Program("prg2.exe", [ASM.CPU(2), ASM.IO(), ASM.CPU(1), ASM.CPU(2), ASM.IO(),
@@ -22,8 +26,6 @@ if __name__ == '__main__':
     prg6 = Program("prg6.exe", [ASM.CPU(1), ASM.IO(), ASM.CPU(1)])
     prg7 = Program("prg7.exe", [ASM.CPU(3)])
 
-    # setup our hardware with memory size and swap size
-    # HARDWARE.setup(20, 4)
     # add programs to hardware hard disk
     HARDWARE.addProgram(prg1)
     HARDWARE.addProgram(prg2)

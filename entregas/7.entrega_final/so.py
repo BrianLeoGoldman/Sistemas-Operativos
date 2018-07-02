@@ -302,7 +302,7 @@ class Kernel:
         new_irq = IRQ(NEW_INTERRUPTION_TYPE, program)
         HARDWARE.interruptVector.handle(new_irq)
         log.logger.info("\nExecuting program: {name}".format(name=program_name))
-        self.dispatcher.start()
+        # self.dispatcher.start() # TODO: make sure this is not necessary!!!
 
     def has_finished(self):
         return (not self.has_next()) & (self.io_device_controller.has_finished())

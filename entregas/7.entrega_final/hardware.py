@@ -69,7 +69,8 @@ class InterruptVector():
         self._handlers[interruptionType] = interruptionHandler
 
     def handle(self, irq):
-        log.logger.info("Handling {type} irq with parameters = {parameters}".format(type=irq.type, parameters=irq.parameters ))
+        log.logger.info("Handling {type} irq with parameters = {parameters}"
+                        .format(type=irq.type, parameters=irq.parameters ))
         self._handlers[irq.type].execute(irq)
 
 
@@ -478,6 +479,9 @@ class Hardware():
     @property
     def ioDevice(self):
         return self._ioDevice
+
+    def add_suscriber(self, suscriber):
+        self.clock.addSubscriber(suscriber)
 
     def __repr__(self):
         return "HARDWARE state {cpu}\n{mem}".format(cpu=self._cpu, mem=self._memory)
