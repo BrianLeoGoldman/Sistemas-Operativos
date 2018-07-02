@@ -212,7 +212,12 @@ class PageFaultInterruptionHandler(AbstractInterruptionHandler):
 # emulates the core of an Operative System
 class Kernel:
 
-    def __init__(self, frame_size):
+    def __init__(self, frame_size, memory_factor):
+
+        # TODO: set dependency injection to decide scheduling algorithm and pagination mode
+
+        HARDWARE.setup(frame_size * memory_factor, frame_size * memory_factor)
+
         # setup interruption handlers
         kill_handler = KillInterruptionHandler(self)
         HARDWARE.interruptVector.register(KILL_INTERRUPTION_TYPE, kill_handler)

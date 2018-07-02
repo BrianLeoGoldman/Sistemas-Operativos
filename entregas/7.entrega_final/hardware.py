@@ -188,6 +188,10 @@ class HDD():
     def __init__(self):
         self._memory = { }
 
+    @property
+    def memory(self):
+        return self._memory
+
     def addProgram(self, program):
         name = program.name
         instructions = program.instructions
@@ -210,6 +214,13 @@ class HDD():
             direction += 1
             counter += 1
         return instructions
+
+    def __repr__(self):
+        string = ""
+        for key, value in self._memory.items():
+            string = string + "\n" + str(key) + " ---> " + str(value)
+        return "DISK\n{programs}"\
+            .format(programs=string)
 
 
 ## emulates the main memory (RAM)
@@ -374,11 +385,11 @@ class AbstractIODevice():
     def is_idle(self):
         return not self._busy
 
-
     ## executes an I/O instruction
     def execute(self, operation):
         if (self._busy):
-            raise Exception("Device {id} is busy, can't  execute operation: {op}".format(id = self.deviceId, op = operation))
+            raise Exception("Device {id} is busy, can't  execute operation: {op}"
+                            .format(id = self.deviceId, op = operation))
         else:
             self._busy = True
             self._ticksCount = 0
@@ -393,7 +404,8 @@ class AbstractIODevice():
                 ioOutIRQ = IRQ(IO_OUT_INTERRUPTION_TYPE, self._deviceId)
                 HARDWARE.interruptVector.handle(ioOutIRQ)
             else:
-                log.logger.info("device {deviceId} - Busy: {ticksCount} of {deviceTime}".format(deviceId = self.deviceId, ticksCount = self._ticksCount, deviceTime = self._deviceTime))
+                log.logger.info("device {deviceId} - Busy: {ticksCount} of {deviceTime}"
+                                .format(deviceId = self.deviceId, ticksCount = self._ticksCount, deviceTime = self._deviceTime))
 
 
 class PrinterIODevice(AbstractIODevice):
@@ -407,7 +419,6 @@ class Hardware():
     ## Setup our hardware
     def setup(self, memorySize, swapSize):
         ## add the components to the "motherboard"
-        # TODO: swap size should come from dependency injection (and size should be frame_size * n)
         self._swap = Swap(swapSize)
         self._disk = HDD()
         self._memory = Memory(memorySize)

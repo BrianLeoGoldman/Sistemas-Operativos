@@ -8,6 +8,9 @@ if __name__ == '__main__':
     log.setup_logger()
     log.logger.info('Starting emulator')
 
+    # new create the Operative System Kernel and set the frame size
+    kernel = Kernel(4, 3)
+
     prg1 = Program("prg1.exe", [ASM.CPU(3), ASM.IO(), ASM.CPU(3), ASM.IO(), ASM.CPU(3)])
     prg2 = Program("prg2.exe", [ASM.CPU(2), ASM.IO(), ASM.CPU(1), ASM.CPU(2), ASM.IO(),
                                 ASM.CPU(1), ASM.CPU(2), ASM.IO()])
@@ -20,7 +23,7 @@ if __name__ == '__main__':
     prg7 = Program("prg7.exe", [ASM.CPU(3)])
 
     # setup our hardware with memory size and swap size
-    HARDWARE.setup(20, 4)
+    # HARDWARE.setup(20, 4)
     # add programs to hardware hard disk
     HARDWARE.addProgram(prg1)
     HARDWARE.addProgram(prg2)
@@ -30,8 +33,6 @@ if __name__ == '__main__':
     HARDWARE.addProgram(prg6)
     HARDWARE.addProgram(prg7)
 
-    # new create the Operative System Kernel and set the frame size
-    kernel = Kernel(4)
     # variable used to count the tick number
     tickNbr = 0
     # variable used to run the test
@@ -60,6 +61,9 @@ if __name__ == '__main__':
 
     def print_mmu():
         print(HARDWARE.mmu)
+
+    def print_hdd():
+        print(HARDWARE.disk)
 
     def print_ready():
         kernel.scheduler.print_ready()
@@ -105,6 +109,7 @@ if __name__ == '__main__':
         "swap_manager": print_swap_manager,
         "victim": print_victim_algorithm,
         "mmu": print_mmu,
+        "hdd": print_hdd,
         "ready": print_ready,
         "io": print_io,
         "table": print_pcb_table,
