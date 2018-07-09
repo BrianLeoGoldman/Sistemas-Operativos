@@ -1,8 +1,4 @@
-import itertools
-
-from tabulate import tabulate
-import log
-from hardware import HARDWARE
+from hardware.hardware import *
 
 
 class GanttChartCalculator:
@@ -38,7 +34,6 @@ class GanttChartCalculator:
                 else:
                     self.chart[pcb.pid] = self.initiate_chart()
                     self.chart[pcb.pid] = self.chart[pcb.pid] + self.get_symbol(pcb.state)
-        log.logger.info(self)
         self.ticks = self.ticks + 1
 
     def get_symbol(self,  state):

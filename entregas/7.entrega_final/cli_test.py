@@ -1,6 +1,7 @@
 from gantt_chart import GanttChartCalculator
-from so import *
-import log
+from software.kernel import *
+from software.program import *
+from software.scheduling import *
 
 #
 #  MAIN
@@ -9,22 +10,33 @@ if __name__ == '__main__':
     log.setup_logger()
     log.logger.info('Starting emulator')
 
-    # new create the Operative System Kernel and set the frame size and memory factor
-    kernel = Kernel(4, 3)
+    frame_size = 4
+
+    HARDWARE.setup(frame_size)
+
+    # scheduler = FirstComeFirstServed()
+    # scheduler = RoundRobin(4)
+    scheduler = Priority(True)
+
+    # create the Operative System Kernel and set the frame size, memory factor and scheduler
+    kernel = Kernel(frame_size, scheduler)
 
     # set up the gantt chart calculator
     gantt = GanttChartCalculator(kernel)
 
-    prg1 = Program("prg1.exe", [ASM.CPU(3), ASM.IO(), ASM.CPU(3), ASM.IO(), ASM.CPU(3)])
-    prg2 = Program("prg2.exe", [ASM.CPU(2), ASM.IO(), ASM.CPU(1), ASM.CPU(2), ASM.IO(),
-                                ASM.CPU(1), ASM.CPU(2), ASM.IO()])
-    prg3 = Program("prg3.exe", [ASM.CPU(1), ASM.IO(), ASM.CPU(2), ASM.CPU(1), ASM.IO(),
-                                ASM.CPU(2), ASM.CPU(1), ASM.IO(), ASM.CPU(1)])
-    prg4 = Program("prg4.exe", [ASM.CPU(1), ASM.IO(), ASM.CPU(1), ASM.IO(), ASM.CPU(1),
-                                ASM.IO(), ASM.CPU(1), ASM.IO(), ASM.CPU(1), ASM.IO(), ASM.CPU(1)])
-    prg5 = Program("prg5.exe", [ASM.CPU(11)])
+    prg1 = Program("prg1.exe", [ASM.CPU(2)])
+    prg2 = Program("prg2.exe", [ASM.CPU(1), ASM.IO(), ASM.CPU(1)])
+    prg3 = Program("prg3.exe", [ASM.CPU(3)])
+    prg4 = Program("prg4.exe", [ASM.CPU(3), ASM.IO(), ASM.CPU(1)])
+    prg5 = Program("prg5.exe", [ASM.CPU(8)])
     prg6 = Program("prg6.exe", [ASM.CPU(1), ASM.IO(), ASM.CPU(1)])
-    prg7 = Program("prg7.exe", [ASM.CPU(3)])
+    prg7 = Program("prg7.exe", [ASM.CPU(3), ASM.IO(), ASM.CPU(3), ASM.IO(), ASM.CPU(3)])
+    prg8 = Program("prg8.exe", [ASM.CPU(2), ASM.IO(), ASM.CPU(1), ASM.CPU(2), ASM.IO(),
+                                ASM.CPU(1), ASM.CPU(2), ASM.IO()])
+    prg9 = Program("prg9.exe", [ASM.CPU(1), ASM.IO(), ASM.CPU(2), ASM.CPU(1), ASM.IO(),
+                                ASM.CPU(2), ASM.CPU(1), ASM.IO(), ASM.CPU(1)])
+    prg10 = Program("prg10.exe", [ASM.CPU(1), ASM.IO(), ASM.CPU(1), ASM.IO(), ASM.CPU(1),
+                                  ASM.IO(), ASM.CPU(1), ASM.IO(), ASM.CPU(1), ASM.IO(), ASM.CPU(1)])
 
     # add programs to hardware hard disk
     HARDWARE.addProgram(prg1)
@@ -34,6 +46,9 @@ if __name__ == '__main__':
     HARDWARE.addProgram(prg5)
     HARDWARE.addProgram(prg6)
     HARDWARE.addProgram(prg7)
+    HARDWARE.addProgram(prg8)
+    HARDWARE.addProgram(prg9)
+    HARDWARE.addProgram(prg10)
 
     # variable used to count the tick number
     tickNbr = 0
@@ -64,7 +79,7 @@ if __name__ == '__main__':
     def print_mmu():
         print(HARDWARE.mmu)
 
-    def print_hdd():
+    def print_disk():
         print(HARDWARE.disk)
 
     def print_ready():
@@ -87,6 +102,9 @@ if __name__ == '__main__':
 
     def print_swap():
         print(HARDWARE.swap)
+
+    def print_gantt():
+        print(gantt)
 
     def execute_program():
         name = input()
@@ -111,11 +129,12 @@ if __name__ == '__main__':
         "swap_manager": print_swap_manager,
         "victim": print_victim_algorithm,
         "mmu": print_mmu,
-        "hdd": print_hdd,
+        "disk": print_disk,
         "ready": print_ready,
         "io": print_io,
         "table": print_pcb_table,
         "swap": print_swap,
+        "gantt": print_gantt,
         "execute": execute_program,
         "exit": finish_test
     }

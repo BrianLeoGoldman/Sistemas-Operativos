@@ -1,7 +1,5 @@
-from hardware import *
-from so import *
-import log
-
+from software.kernel import *
+from software.program import *
 
 ##
 ##  MAIN 
