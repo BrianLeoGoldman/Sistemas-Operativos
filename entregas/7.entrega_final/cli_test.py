@@ -10,21 +10,18 @@ if __name__ == '__main__':
     log.logger.info('Starting emulator')
 
     # new create the Operative System Kernel and set the frame size and memory factor
-    kernel = Kernel(4, 3)
+    kernel = Kernel(4)
 
     # set up the gantt chart calculator
     gantt = GanttChartCalculator(kernel)
 
-    prg1 = Program("prg1.exe", [ASM.CPU(3), ASM.IO(), ASM.CPU(3), ASM.IO(), ASM.CPU(3)])
-    prg2 = Program("prg2.exe", [ASM.CPU(2), ASM.IO(), ASM.CPU(1), ASM.CPU(2), ASM.IO(),
-                                ASM.CPU(1), ASM.CPU(2), ASM.IO()])
-    prg3 = Program("prg3.exe", [ASM.CPU(1), ASM.IO(), ASM.CPU(2), ASM.CPU(1), ASM.IO(),
-                                ASM.CPU(2), ASM.CPU(1), ASM.IO(), ASM.CPU(1)])
-    prg4 = Program("prg4.exe", [ASM.CPU(1), ASM.IO(), ASM.CPU(1), ASM.IO(), ASM.CPU(1),
-                                ASM.IO(), ASM.CPU(1), ASM.IO(), ASM.CPU(1), ASM.IO(), ASM.CPU(1)])
-    prg5 = Program("prg5.exe", [ASM.CPU(11)])
-    prg6 = Program("prg6.exe", [ASM.CPU(1), ASM.IO(), ASM.CPU(1)])
-    prg7 = Program("prg7.exe", [ASM.CPU(3)])
+    prg1 = Program("prg1.exe", [ASM.CPU(1), ASM.IO(), ASM.CPU(1)])
+    prg2 = Program("prg2.exe", [ASM.CPU(3)])
+    prg3 = Program("prg3.exe", [ASM.CPU(2), ASM.IO()])
+    prg4 = Program("prg4.exe", [ASM.CPU(5)])
+    prg5 = Program("prg5.exe", [ASM.CPU(4), ASM.IO(), ASM.CPU(1)])
+    prg6 = Program("prg6.exe", [ASM.CPU(1), ASM.IO(), ASM.CPU(3), ASM.IO(), ASM.CPU(1)])
+    prg7 = Program("prg7.exe", [ASM.CPU(2), ASM.IO(), ASM.CPU(2), ASM.IO(), ASM.CPU(1)])
 
     # add programs to hardware hard disk
     HARDWARE.addProgram(prg1)
@@ -88,6 +85,9 @@ if __name__ == '__main__':
     def print_swap():
         print(HARDWARE.swap)
 
+    def print_gantt():
+        print(gantt)
+
     def execute_program():
         name = input()
         kernel.execute(name)
@@ -111,10 +111,11 @@ if __name__ == '__main__':
         "swap_manager": print_swap_manager,
         "victim": print_victim_algorithm,
         "mmu": print_mmu,
-        "hdd": print_hdd,
+        "disk": print_hdd,
         "ready": print_ready,
         "io": print_io,
         "table": print_pcb_table,
+        "gantt": print_gantt,
         "swap": print_swap,
         "execute": execute_program,
         "exit": finish_test

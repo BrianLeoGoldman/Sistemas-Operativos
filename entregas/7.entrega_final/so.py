@@ -147,7 +147,7 @@ class AbstractInterruptionHandler:
 class KillInterruptionHandler(AbstractInterruptionHandler):
 
     def execute(self, irq):
-        log.logger.info("Program Finished ")
+        log.logger.info(" Program Finished ")
         pcb = self.kernel.scheduler.current
         self.kernel.change_state(pcb, "Terminated")
         self.kernel.terminate()
@@ -212,11 +212,10 @@ class PageFaultInterruptionHandler(AbstractInterruptionHandler):
 # emulates the core of an Operative System
 class Kernel:
 
-    def __init__(self, frame_size, memory_factor):
-
+    def __init__(self, frame_size):
         # TODO: set dependency injection to decide scheduling algorithm and pagination mode
 
-        HARDWARE.setup(frame_size * memory_factor, frame_size * memory_factor)
+        HARDWARE.setup(frame_size * 3, frame_size * 2)
 
         # setup interruption handlers
         kill_handler = KillInterruptionHandler(self)
@@ -239,11 +238,17 @@ class Kernel:
 
         # controls the Hardware's I/O Device
         self._io_device_controller = IoDeviceController(self, HARDWARE.ioDevice)
-        self._memory_manager = MemoryManagerPagination(self, frame_size, HARDWARE.memory.size) #TODO: change for MemoryManagerPaginationOnDemand
+
+        # TODO: MemoryManager and MMU should be both pagination or pagination on demand
+        self._memory_manager = MemoryManagerPagination(self, frame_size, HARDWARE.memory.size)
+        # self._memory_manager = MemoryManagerPaginationOnDemand(self, frame_size, HARDWARE.memory.size)
+
         self._swap_manager = SwapManager(self, frame_size)
         self._loader = Loader(self)
         self._dispatcher = Dispatcher(self)
         self._table = PCBTable(30)
+
+        # TODO: choose scheduling algorithm
         self._scheduler = FirstComeFirstServed(self)
         # self._scheduler = RoundRobin(self, 4)
         # self._scheduler = Priority(self, True)
@@ -302,7 +307,6 @@ class Kernel:
         new_irq = IRQ(NEW_INTERRUPTION_TYPE, program)
         HARDWARE.interruptVector.handle(new_irq)
         log.logger.info("\nExecuting program: {name}".format(name=program_name))
-        # self.dispatcher.start() # TODO: make sure this is not necessary!!!
 
     def has_finished(self):
         return (not self.has_next()) & (self.io_device_controller.has_finished())
@@ -564,15 +568,15 @@ class Loader:
         return self._frame_size
 
     def load_page(self, pcb, page, frame):
-        log.logger.info("Loading page")
+        # log.logger.info("Loading page")
         if self.kernel.memory_manager.page_is_in_swap(pcb.pid, page):
-            log.logger.info("Its in swap")
+            # log.logger.info("Its in swap")
             swap_frame = self.kernel.memory_manager.get_current_frame(pcb.pid, page)
             instructions = self.swap_out(swap_frame)
             self.kernel.swap_manager.release_frame(swap_frame)
             self.kernel.memory_manager.set_swap_flag(pcb.pid, swap_frame, False)
         else:
-            log.logger.info("Its in disk")
+            # log.logger.info("Its in disk")
             instructions = HARDWARE.disk.getPage(pcb.name, page, self.frame_size)
         base_dir_memory = frame * self.frame_size
         for instruction in instructions:
@@ -736,7 +740,9 @@ class MemoryManagerPagination(MemoryManager):
         if self.has_enough_space(program_length):
             pair_div_mod = divmod(program_length, self.frame_size)
             pages_number = pair_div_mod[0]
-            log.logger.info("Number of pages:" + str(pages_number))
+            if pair_div_mod[1] != 0:
+                pages_number += 1
+            # log.logger.info("Number of pages:" + str(pages_number))
             table = PageTable()
             for page in range(0, int(pages_number)):
                 table.add(page, self.next_frame())
@@ -765,7 +771,11 @@ class MemoryManagerPaginationOnDemand(MemoryManager):
 
     def __init__(self, kernel, frame_size, memory_size):
         super().__init__(kernel, frame_size, memory_size)
-        self._victim_selector = SecondChanceReplacementAlgorithm(self)
+
+        # TODO: choose victim selector algorithm
+        self._victim_selector = FIFOPageReplacementAlgorithm(self)
+        # self._victim_selector = LRUPageReplacementAlgorithm(self)
+        # self._victim_selector = SecondChanceReplacementAlgorithm(self)
         self.assign_frames()
 
     @property
@@ -997,27 +1007,16 @@ class SecondChanceReplacementAlgorithm(PageReplacementAlgorithm):
     def get_victim(self):
         victim = None
         victimChosen = False
-        log.logger.info("El metodo recien empieza")
-        log.logger.info("La lista esta: " + str(self.frames_used))
         while not victimChosen:
             pair = self.frames_used.pop(0)
             page_info = pair[1]
-            log.logger.info("Analizando " + str(pair))
             if (not victimChosen) & (page_info[3] == 0):
-                log.logger.info("Encontre una victima")
                 victim = pair[0]
                 victimChosen = True
                 page_info[3] = 1
-                log.logger.info("victimChosen quedo en " + str(victimChosen))
-                log.logger.info("La lista quedo " + str(self.frames_used))
             if (not victimChosen) & (page_info[3] == 1):
-                log.logger.info("Este no es una victima")
                 page_info[3] = 0
                 self.frames_used.append(pair)
-                log.logger.info("La lista quedo " + str(self.frames_used))
-            log.logger.info("Pasando al siguiente elemento de la lista")
-        log.logger.info("El metodo termino, la victima elegida es " + str(victim))
-        log.logger.info("La lista quedo " + str(self.frames_used))
         return victim
 
     def __repr__(self):

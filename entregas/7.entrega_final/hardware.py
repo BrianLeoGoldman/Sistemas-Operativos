@@ -279,13 +279,13 @@ class MMUPagination(MMU):
         pair_div_mod = divmod(logical_address, self.frame_size)
         page_number = pair_div_mod[0]
         offset = pair_div_mod[1]
-        log.logger.info(self.page_table)
+        # log.logger.info(self.page_table)
         frame_number = self.page_table.page_list[page_number][0]
         physical_address = self.frame_size * frame_number + offset
-        log.logger.info("Page number:" + str(page_number))
-        log.logger.info("Offset: " + str(offset))
-        log.logger.info("Logical address: " + str(logical_address))
-        log.logger.info("Physical address: " + str(physical_address))
+        # log.logger.info("Page number:" + str(page_number))
+        # log.logger.info("Offset: " + str(offset))
+        # log.logger.info("Logical address: " + str(logical_address))
+        # log.logger.info("Physical address: " + str(physical_address))
         return self._memory.get(physical_address)
 
     def __repr__(self):
@@ -306,10 +306,10 @@ class MMUPaginationOnDemand(MMU):
             HARDWARE.interruptVector.handle(page_fault_IRQ)
         frame_number = self.page_table.find_frame(page_number)
         physical_address = self.frame_size * frame_number + offset
-        log.logger.info("Page number:" + str(page_number))
-        log.logger.info("Offset: " + str(offset))
-        log.logger.info("Logical address: " + str(logical_address))
-        log.logger.info("Physical address: " + str(physical_address))
+        # log.logger.info("Page number:" + str(page_number))
+        # log.logger.info("Offset: " + str(offset))
+        # log.logger.info("Logical address: " + str(logical_address))
+        # log.logger.info("Physical address: " + str(physical_address))
         return self._memory.get(physical_address)
 
     def __repr__(self):
@@ -427,7 +427,11 @@ class Hardware():
         self._clock = Clock()
         self._timer = Timer(self._interruptVector)
         self._ioDevice = PrinterIODevice()
-        self._mmu = MMUPagination(self._memory)  # TODO: change for MMUPaginationOnDemand
+
+        # TODO: MemoryManager and MMU should be both pagination or pagination on demand
+        self._mmu = MMUPagination(self._memory)
+        # self._mmu = MMUPaginationOnDemand(self._memory)
+
         self._cpu = Cpu(self._mmu, self._interruptVector)
         self._clock.addSubscriber(self._timer)
         self._clock.addSubscriber(self._ioDevice)
